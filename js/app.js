@@ -84,7 +84,9 @@ class App {
     if (k === "ArrowDown" || k === "s" || k === "S") this.keys.down = down;
     if (k === "ArrowLeft" || k === "a" || k === "A") this.keys.left = down;
     if (k === "ArrowRight" || k === "d" || k === "D") this.keys.right = down;
+    if (k === " " || k === "Spacebar" || e.code === "Space") this.keys.nitro = down;
     if (k === "Shift" || e.code === "ShiftLeft" || e.code === "ShiftRight") this.keys.nitro = down;
+    if (e.shiftKey) this.keys.nitro = true;
     if (!down) return;
     this.audio.unlock();
     if (k === "m" || k === "M") {

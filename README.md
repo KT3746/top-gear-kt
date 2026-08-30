@@ -14,7 +14,7 @@ Jogo de corrida no navegador. Não precisa instalar nada.
 ### Controles
 
 - **Setas** ou **W A S D** — acelerar, frear e dirigir
-- **Shift** — nitro
+- **Shift** ou **Espaço** — nitro
 - **Esc** — pausar
 - **M** — ligar ou desligar o som
 - **F** — tela cheia

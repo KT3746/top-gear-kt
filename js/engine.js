@@ -493,7 +493,7 @@ export class GameEngine {
       const look = this.findSeg(c.z + PLAYER_Z + 18 * SEG);
       const here = this.findSeg(c.z + PLAYER_Z);
       const danger = Math.abs(look.curve) + Math.abs(here.curve);
-      let target = this.maxSpeed(c) * (0.58 + c.skill * 0.2) * (1 - danger * 0.05);
+      let target = this.maxSpeed(c) * (0.54 + c.skill * 0.18) * (1 - danger * 0.055);
       const gap = playerLead - this.progress(c);
       if (gap > len * 0.08) target *= 1.08;
       if (gap < -len * 0.1) target *= 0.94;
