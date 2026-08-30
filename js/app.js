@@ -84,7 +84,10 @@ class App {
     if (k === "ArrowDown" || k === "s" || k === "S") this.keys.down = down;
     if (k === "ArrowLeft" || k === "a" || k === "A") this.keys.left = down;
     if (k === "ArrowRight" || k === "d" || k === "D") this.keys.right = down;
-    if (k === " " || k === "Spacebar" || e.code === "Space") this.keys.nitro = down;
+    if (k === " " || k === "Spacebar" || e.code === "Space") {
+      e.preventDefault();
+      this.keys.nitro = down;
+    }
     if (k === "Shift" || e.code === "ShiftLeft" || e.code === "ShiftRight") this.keys.nitro = down;
     if (e.shiftKey) this.keys.nitro = true;
     if (!down) return;
@@ -293,6 +296,7 @@ class App {
     this.engine.startRace(trackId, this.carId, this.save.upgrades, 2);
     this.show("race");
     this.audio.go();
+    document.activeElement?.blur?.();
   }
 
   finish(results) {
