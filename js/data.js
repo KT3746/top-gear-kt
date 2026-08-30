@@ -84,12 +84,12 @@ export const UPGRADES = {
 export const PRIZE = [800, 450, 250, 120];
 export const POINTS = [10, 6, 3, 1];
 
-const EASY = 3;
-const MED = 5;
-const HARD = 7;
-const HILL_S = 12;
-const HILL_M = 28;
-const HILL_L = 48;
+const EASY = 2.2;
+const MED = 3.8;
+const HARD = 5.2;
+const HILL_S = 16;
+const HILL_M = 34;
+const HILL_L = 56;
 
 function recipePraia() {
   return [

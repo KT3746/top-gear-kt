@@ -84,7 +84,7 @@ class App {
     if (k === "ArrowDown" || k === "s" || k === "S") this.keys.down = down;
     if (k === "ArrowLeft" || k === "a" || k === "A") this.keys.left = down;
     if (k === "ArrowRight" || k === "d" || k === "D") this.keys.right = down;
-    if (k === "Shift") this.keys.nitro = down;
+    if (k === "Shift" || e.code === "ShiftLeft" || e.code === "ShiftRight") this.keys.nitro = down;
     if (!down) return;
     this.audio.unlock();
     if (k === "m" || k === "M") {
@@ -373,6 +373,7 @@ class App {
     $("hud-time").textContent = fmt(h.time);
     $("hud-nitro").style.width = `${Math.round(h.nitro * 100)}%`;
     $("hud-fuel").style.width = `${Math.round(h.fuel * 100)}%`;
+    $("hud-nitro").parentElement.classList.toggle("hot", this.keys.nitro && h.nitro > 0);
     const toast = $("toast");
     if (h.toast) {
       toast.textContent = h.toast;

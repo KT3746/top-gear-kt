@@ -321,6 +321,10 @@ kbd {
   background: linear-gradient(90deg, #7c5cff, #49d6ff);
 }
 
+.bar-track.hot i {
+  box-shadow: 0 0 12px #49d6ff;
+}
+
 .bar-track.fuel i { background: linear-gradient(90deg, #ff5d6c, #f0b429); }
 
 .speedo { text-align: right; }
@@ -336,12 +340,13 @@ kbd {
 .toast {
   position: absolute;
   left: 50%;
-  top: 28%;
+  top: 26%;
   transform: translateX(-50%);
   font-family: "Teko", Impact, sans-serif;
-  font-size: 48px;
+  font-size: 56px;
   letter-spacing: 0.08em;
-  text-shadow: 0 6px 18px rgba(0,0,0,0.6);
+  color: #fff;
+  text-shadow: 0 0 18px rgba(240, 180, 41, 0.8), 0 6px 18px rgba(0,0,0,0.7);
 }
 
 .countdown {

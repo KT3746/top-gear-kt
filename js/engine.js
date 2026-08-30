@@ -3,13 +3,13 @@ import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js";
 const SEG = 200;
 const ROAD = 2100;
 const LANES = 3;
-const DRAW = 240;
+const DRAW = 260;
 const FOV = 100;
-const CAM_H = 1100;
+const CAM_H = 1000;
 const CAM_DEPTH = 1 / Math.tan(((FOV / 2) * Math.PI) / 180);
 const PLAYER_Z = CAM_H * CAM_DEPTH;
-const CENTRIFUGAL = 0.32;
-const SPRITE_SCALE = 0.28;
+const CENTRIFUGAL = 0.155;
+const SPRITE_SCALE = 0.38;
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -79,18 +79,17 @@ function buildTrack(def) {
   }
 
   const kinds = def.objects;
-  for (let i = 6; i < segs.length; i += 5) {
-    const side = (i % 10 === 0) ? -1 : 1;
+  for (let i = 4; i < segs.length; i += 3) {
+    const side = (i % 6 === 0) ? -1 : 1;
     const kind = kinds[(i + (side > 0 ? 1 : 0)) % kinds.length];
-    const offset = side * (1.35 + (i % 7) * 0.08);
-    segs[i].sprites.push({ kind, offset, scale: kind === "building" ? 2.4 : kind === "palm" || kind === "pine" ? 1.8 : 1.1 });
-    if (i % 15 === 0) {
-      segs[i].sprites.push({
-        kind: kinds[(i + 2) % kinds.length],
-        offset: -offset * 1.15,
-        scale: 1.3,
-      });
-    }
+    const offset = side * (1.28 + (i % 5) * 0.06);
+    const big = kind === "building" ? 2.8 : kind === "palm" || kind === "pine" ? 2.2 : 1.35;
+    segs[i].sprites.push({ kind, offset, scale: big });
+    segs[i].sprites.push({
+      kind: kinds[(i + 2) % kinds.length],
+      offset: -offset * (1.05 + (i % 4) * 0.04),
+      scale: big * 0.85,
+    });
   }
   for (let i = 80; i < segs.length - 40; i += 140) {
     segs[i].pickup = { x: (i % 280 === 0) ? -0.35 : 0.35, taken: false };
@@ -196,44 +195,44 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale, scale);
-  ctx.rotate(steer * 0.18);
+  ctx.rotate(steer * 0.28);
   const body = car.color;
   const accent = car.accent;
   const type = car.silhouette;
-  ctx.fillStyle = "rgba(0,0,0,0.35)";
-  ctx.beginPath(); ctx.ellipse(0, 18, 52, 10, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#111";
-  ctx.fillRect(-40, 4, 18, 12);
-  ctx.fillRect(22, 4, 18, 12);
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.beginPath(); ctx.ellipse(0, 22, 58, 12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#0d0d10";
+  ctx.fillRect(-46 + steer * 4, 6, 22, 14);
+  ctx.fillRect(24 + steer * 4, 6, 22, 14);
   ctx.fillStyle = body;
-  if (type === "long") {
-    ctx.beginPath();
-    ctx.moveTo(-46, 10); ctx.lineTo(-40, -8); ctx.lineTo(-8, -20); ctx.lineTo(36, -16); ctx.lineTo(50, 2); ctx.lineTo(42, 12); ctx.closePath();
-    ctx.fill();
-  } else if (type === "wide") {
-    ctx.beginPath();
-    ctx.moveTo(-50, 10); ctx.lineTo(-36, -10); ctx.lineTo(-6, -16); ctx.lineTo(30, -14); ctx.lineTo(48, 4); ctx.lineTo(40, 14); ctx.closePath();
-    ctx.fill();
-  } else if (type === "box") {
-    ctx.fillRect(-42, -14, 84, 26);
-    ctx.fillRect(-20, -20, 48, 10);
-  } else {
-    ctx.beginPath();
-    ctx.moveTo(-44, 10); ctx.lineTo(-34, -8); ctx.lineTo(-4, -18); ctx.lineTo(28, -16); ctx.lineTo(46, 2); ctx.lineTo(38, 14); ctx.closePath();
-    ctx.fill();
-  }
-  ctx.fillStyle = "rgba(180, 230, 255, 0.72)";
   ctx.beginPath();
-  ctx.moveTo(-8, -16); ctx.lineTo(16, -15); ctx.lineTo(10, -4); ctx.lineTo(-16, -4); ctx.closePath();
+  if (type === "long") {
+    ctx.moveTo(-50, 12); ctx.lineTo(-42, -10); ctx.lineTo(-10, -24); ctx.lineTo(40, -18); ctx.lineTo(56, 4); ctx.lineTo(46, 16);
+  } else if (type === "wide") {
+    ctx.moveTo(-56, 12); ctx.lineTo(-40, -12); ctx.lineTo(-6, -20); ctx.lineTo(34, -16); ctx.lineTo(54, 6); ctx.lineTo(44, 16);
+  } else if (type === "box") {
+    ctx.moveTo(-48, 14); ctx.lineTo(-44, -8); ctx.lineTo(-16, -22); ctx.lineTo(28, -22); ctx.lineTo(50, -4); ctx.lineTo(44, 16);
+  } else {
+    ctx.moveTo(-48, 12); ctx.lineTo(-36, -10); ctx.lineTo(-4, -22); ctx.lineTo(32, -18); ctx.lineTo(52, 4); ctx.lineTo(42, 16);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.fillRect(-28, -2, 56, 8);
+  ctx.fillStyle = "rgba(200, 235, 255, 0.8)";
+  ctx.beginPath();
+  ctx.moveTo(-10, -18); ctx.lineTo(18, -16); ctx.lineTo(12, -4); ctx.lineTo(-18, -5); ctx.closePath();
   ctx.fill();
   ctx.fillStyle = accent;
-  ctx.fillRect(-18, 2, 36, 4);
+  ctx.fillRect(-20, 4, 40, 5);
   ctx.fillStyle = nitro ? "#7cf6ff" : "#ffd36a";
-  ctx.fillRect(-32, 8, 8, 4);
-  ctx.fillRect(24, 8, 8, 4);
+  ctx.fillRect(-34, 10, 10, 5);
+  ctx.fillRect(24, 10, 10, 5);
   if (nitro) {
-    ctx.fillStyle = "rgba(90, 220, 255, 0.55)";
-    ctx.beginPath(); ctx.moveTo(-12, 12); ctx.lineTo(0, 34); ctx.lineTo(12, 12); ctx.fill();
+    ctx.fillStyle = "rgba(80, 230, 255, 0.7)";
+    ctx.beginPath(); ctx.moveTo(-16, 16); ctx.lineTo(0, 48); ctx.lineTo(16, 16); ctx.fill();
+    ctx.fillStyle = "rgba(255, 200, 80, 0.55)";
+    ctx.beginPath(); ctx.moveTo(-8, 16); ctx.lineTo(0, 36); ctx.lineTo(8, 16); ctx.fill();
   }
   ctx.restore();
 }
@@ -334,8 +333,8 @@ export class GameEngine {
         nerve: d.nerve,
         spec: applyUpgrades(base, { engine: 0, tires: 0, nitro: 0 }),
         car: base,
-        x: [-0.45, 0.4, -0.15][i] || 0.2,
-        z: 0,
+        x: [-0.42, 0.38, -0.12][i] || 0.2,
+        z: (i + 1) * SEG * 5,
         speed: 0,
         nitro: 1,
         fuel: 1,
@@ -428,35 +427,46 @@ export class GameEngine {
     const left = this.keys.left;
     const right = this.keys.right;
     const boost = this.keys.nitro && p.nitro > 0 && p.fuel > 0;
-    const max = this.maxSpeed(p) * (boost ? 1.16 + (p.spec.nitro - 1) * 0.25 : 1);
-    const accel = 2800 * p.spec.accel * (boost ? 1.45 : 1);
+    const max = this.maxSpeed(p) * (boost ? 1.2 + (p.spec.nitro - 1) * 0.28 : 1);
+    const accel = 3200 * p.spec.accel * (boost ? 1.55 : 1);
     if (up) p.speed += accel * dt;
-    else p.speed -= 700 * dt;
-    if (down) p.speed -= 4200 * dt;
+    else p.speed -= 520 * dt;
+    if (down) p.speed -= 3800 * dt;
     p.speed = clamp(p.speed, 0, max);
     const off = Math.abs(this.playerX) > 1;
-    if (off) p.speed -= (1800 / (p.spec.offroad || 1)) * dt;
+    if (off) p.speed -= (720 / (p.spec.offroad || 1)) * dt;
     p.speed = Math.max(0, p.speed);
 
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
     const grip = p.spec.grip;
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    this.steer = lerp(this.steer, want, 1 - Math.pow(0.04, dt));
-    const steerPower = 1.55 * (0.35 + 0.65 * speedPct) / (0.7 + grip * 0.3);
-    this.playerX += this.steer * steerPower * dt * (off ? 1.15 : 1);
-    this.slip = lerp(this.slip, this.steer * speedPct * (1.15 / grip), 8 * dt);
+    this.steer = lerp(this.steer, want, 1 - Math.pow(0.025, dt));
+    const steerPower = 2.35 * (0.45 + 0.55 * speedPct) * (0.75 + grip * 0.25);
+    this.playerX += this.steer * steerPower * dt;
+    const look = this.findSeg(this.position + PLAYER_Z + 10 * SEG);
+    this.playerX += (-look.curve * 0.012 * speedPct) * dt;
+    if (off) this.playerX -= Math.sign(this.playerX) * 0.55 * dt;
+    this.slip = lerp(this.slip, this.steer * speedPct * (1.05 / grip), 8 * dt);
     p.steer = this.slip;
 
     if (boost) {
-      p.nitro = Math.max(0, p.nitro - dt * 0.42 / p.spec.nitroTank);
-      p.fuel = Math.max(0, p.fuel - dt * 0.085);
+      p.nitro = Math.max(0, p.nitro - dt * 0.55 / p.spec.nitroTank);
+      p.fuel = Math.max(0, p.fuel - dt * 0.05);
       this.fovKick = lerp(this.fovKick, 1, 6 * dt);
+      this.toast = "NITRO";
+      this.toastT = 0.25;
     } else {
-      p.nitro = Math.min(1, p.nitro + dt * 0.07);
+      p.nitro = Math.min(1, p.nitro + dt * 0.08);
       this.fovKick = lerp(this.fovKick, 0, 4 * dt);
     }
-    p.fuel = Math.max(0, p.fuel - dt * (0.018 + speedPct * 0.02) / p.spec.fuel);
-    if (off && p.speed > 80) this.shake = Math.max(this.shake, 4);
+    p.fuel = Math.max(0, p.fuel - dt * (0.0035 + speedPct * 0.0028) / p.spec.fuel);
+    if (off) {
+      this.shake = Math.max(this.shake, 5);
+      if (this.toast !== "NITRO") {
+        this.toast = "FORA DA PISTA";
+        this.toastT = 0.3;
+      }
+    }
   }
 
   autoDrive(dt) {
@@ -483,7 +493,7 @@ export class GameEngine {
       const look = this.findSeg(c.z + PLAYER_Z + 18 * SEG);
       const here = this.findSeg(c.z + PLAYER_Z);
       const danger = Math.abs(look.curve) + Math.abs(here.curve);
-      let target = this.maxSpeed(c) * (0.72 + c.skill * 0.28) * (1 - danger * 0.035);
+      let target = this.maxSpeed(c) * (0.68 + c.skill * 0.24) * (1 - danger * 0.042);
       const gap = playerLead - this.progress(c);
       if (gap > len * 0.08) target *= 1.08;
       if (gap < -len * 0.1) target *= 0.94;
@@ -735,26 +745,27 @@ export class GameEngine {
 
   drawHills(w, h, def) {
     const ctx = this.ctx;
-    const drift = this.playerX * 40 + (this.findSeg(this.position).curve || 0) * 20;
-    ctx.fillStyle = mixHex(def.grass[1], def.sky[1], 0.35);
+    const drift = this.playerX * 55 + (this.findSeg(this.position).curve || 0) * 28;
+    const base = h * 0.545;
+    ctx.fillStyle = mixHex(def.grass[1], def.sky[0], 0.4);
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.58);
-    for (let i = 0; i <= 8; i++) {
-      const x = (i / 8) * w - drift;
-      const y = h * 0.42 + Math.sin(i * 0.9 + this.position * 0.00005) * h * 0.05;
+    ctx.moveTo(-w * 0.1, base);
+    for (let i = 0; i <= 14; i++) {
+      const x = (i / 14) * w * 1.2 - drift - w * 0.1;
+      const y = h * 0.36 + Math.sin(i * 0.7 + 0.4) * h * 0.08 + Math.sin(i * 1.6) * h * 0.03;
       ctx.lineTo(x, y);
     }
-    ctx.lineTo(w, h * 0.58);
+    ctx.lineTo(w * 1.1, base);
     ctx.fill();
-    ctx.fillStyle = mixHex(def.grass[0], def.sky[0], 0.45);
+    ctx.fillStyle = mixHex(def.grass[0], def.fogColor, 0.25);
     ctx.beginPath();
-    ctx.moveTo(0, h * 0.56);
-    for (let i = 0; i <= 10; i++) {
-      const x = (i / 10) * w - drift * 0.5;
-      const y = h * 0.48 + Math.sin(i * 1.3 + 2) * h * 0.03;
+    ctx.moveTo(-w * 0.1, base);
+    for (let i = 0; i <= 16; i++) {
+      const x = (i / 16) * w * 1.2 - drift * 0.45 - w * 0.1;
+      const y = h * 0.44 + Math.sin(i * 1.1 + 1.7) * h * 0.045;
       ctx.lineTo(x, y);
     }
-    ctx.lineTo(w, h * 0.56);
+    ctx.lineTo(w * 1.1, base);
     ctx.fill();
   }
 
@@ -791,8 +802,7 @@ export class GameEngine {
       const road = mixHex(seg.light ? def.road[0] : def.road[1], def.fogColor, fogT);
       const rumble = mixHex(seg.light ? def.rumble[0] : def.rumble[1], def.fogColor, fogT);
       const lane = seg.light ? mixHex(def.lane, def.fogColor, fogT) : null;
-      ctx.fillStyle = grass;
-      ctx.fillRect(0, p2.y, w, Math.max(1, p1.y - p2.y + 1));
+      poly(ctx, 0, p1.y + 1, w, p1.y + 1, w, p2.y, 0, p2.y, grass);
       const r1 = rumbleW(p1.w), r2 = rumbleW(p2.w);
       poly(ctx, p1.x - p1.w - r1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - r2, p2.y, rumble);
       poly(ctx, p1.x + p1.w + r1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + r2, p2.y, rumble);
@@ -835,28 +845,28 @@ export class GameEngine {
     for (const c of this.cars) {
       if (c.human) continue;
       const dz = wrapDist(c.z, this.position, this.track.length);
-      if (dz <= SEG * 0.4 || dz > DRAW * SEG) continue;
-      const n = Math.floor(dz / SEG);
+      if (dz < -SEG || dz > DRAW * SEG) continue;
+      const n = clamp(Math.floor(dz / SEG), 0, DRAW - 1);
       const pack = projected[n];
-      if (!pack || !pack.p1.scale) continue;
+      if (!pack || pack.p1.scale <= 0) continue;
       const p1 = pack.p1;
       const destX = p1.x + p1.scale * c.x * ROAD * w / 2;
       const destY = p1.y;
-      const s = p1.scale * SPRITE_SCALE * ROAD * (w / 640);
+      const s = Math.max(0.35, p1.scale * SPRITE_SCALE * ROAD * (w / 520));
       sprites.push({ z: dz, destX, destY, s, c, clip: pack.clip });
     }
     sprites.sort((a, b) => b.z - a.z);
     for (const s of sprites) {
-      if (s.destY - s.s * 20 > s.clip) continue;
+      if (s.destY > s.clip + 30) continue;
       drawCar(this.ctx, s.destX, s.destY, s.s, s.c.car, s.c.steer || 0, false);
     }
     if (this.player) {
-      const scale = (w / 1280) * 2.15;
-      const bounce = Math.sin(this.position * 0.02) * (this.player.speed * 0.0004);
+      const scale = (h / 720) * 2.7;
+      const bounce = Math.sin(this.position * 0.025) * (this.player.speed * 0.00035);
       drawCar(
         this.ctx,
-        w / 2 + this.playerX * w * 0.08,
-        h * 0.86 + bounce,
+        w / 2 + this.playerX * w * 0.07,
+        h * 0.84 + bounce,
         scale,
         this.player.car,
         this.player.steer || 0,
