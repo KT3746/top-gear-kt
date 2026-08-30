@@ -64,19 +64,19 @@ export const UPGRADES = {
   engine: {
     name: "Motor",
     blurb: "Sobe mais rápido e alcança mais no fim da reta.",
-    costs: [400, 900, 1600],
+    costs: [280, 700, 1400],
     max: 3,
   },
   tires: {
     name: "Pneus",
     blurb: "Menos derrapada e menos castigo fora da pista.",
-    costs: [350, 800, 1400],
+    costs: [220, 650, 1200],
     max: 3,
   },
   nitro: {
     name: "Nitro",
     blurb: "O empurrão dura mais e empurra mais forte.",
-    costs: [380, 850, 1500],
+    costs: [260, 720, 1350],
     max: 3,
   },
 };
