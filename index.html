@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Relâmpago</title>
+  <meta name="description" content="Jogo de corrida no navegador. Abra e jogue." />
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Teko:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="view"></canvas>
+
+    <div id="hud" class="hud hidden" aria-hidden="true">
+      <div class="hud-top">
+        <div class="hud-card">
+          <span class="hud-label">Posição</span>
+          <strong id="hud-pos">1<span>/4</span></strong>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">Volta</span>
+          <strong id="hud-lap">1<span>/2</span></strong>
+        </div>
+        <div class="hud-card wide">
+          <span class="hud-label">Tempo</span>
+          <strong id="hud-time">0:00.00</strong>
+        </div>
+      </div>
+      <div class="hud-mid">
+        <canvas id="minimap" width="180" height="180"></canvas>
+      </div>
+      <div class="hud-bottom">
+        <div class="bars">
+          <div class="bar">
+            <span>Nitro <kbd>Shift</kbd></span>
+            <div class="bar-track"><i id="hud-nitro"></i></div>
+          </div>
+          <div class="bar">
+            <span>Combustível</span>
+            <div class="bar-track fuel"><i id="hud-fuel"></i></div>
+          </div>
+        </div>
+        <div class="speedo">
+          <strong id="hud-speed">0</strong>
+          <em>km/h</em>
+        </div>
+      </div>
+      <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <div id="countdown" class="countdown hidden"></div>
+
+    <section id="screen-title" class="screen">
+      <div class="screen-inner">
+        <p class="eyebrow">Corrida no navegador</p>
+        <h1>RELÂMPAGO</h1>
+        <p class="tagline">A pista vem até você. Quatro carros. Cinco países. Uma taça.</p>
+        <div class="menu" id="menu-title">
+          <button type="button" data-action="play" class="primary">Jogar</button>
+          <button type="button" data-action="howto">Como jogar</button>
+        </div>
+        <p class="hint">Use as setas do teclado ou W A S D. Nitro no Shift. Pause em Esc.</p>
+      </div>
+    </section>
+
+    <section id="screen-howto" class="screen hidden">
+      <div class="screen-inner card-panel">
+        <h2>Como jogar</h2>
+        <ul class="howto">
+          <li><kbd>↑</kbd> ou <kbd>W</kbd> — acelerar</li>
+          <li><kbd>↓</kbd> ou <kbd>S</kbd> — frear</li>
+          <li><kbd>←</kbd> <kbd>→</kbd> ou <kbd>A</kbd> <kbd>D</kbd> — dirigir</li>
+          <li><kbd>Shift</kbd> — nitro (estoura o tanque e o combustível)</li>
+          <li><kbd>Esc</kbd> — pausar · <kbd>M</kbd> — som · <kbd>F</kbd> — tela cheia</li>
+        </ul>
+        <p>Fique no asfalto. Curvas fortes puxam o carro. Sem combustível o motor morre. Ganhe dinheiro nas corridas e melhore o carro na oficina.</p>
+        <div class="menu">
+          <button type="button" data-action="back-title" class="primary">Voltar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-cars" class="screen hidden">
+      <div class="screen-inner wide">
+        <h2>Escolha o carro</h2>
+        <p class="sub">Cada um dirige de um jeito. Teste e sinta.</p>
+        <div id="car-grid" class="grid-4"></div>
+        <div class="menu">
+          <button type="button" data-action="cars-next" class="primary">Continuar</button>
+          <button type="button" data-action="back-title">Voltar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-mode" class="screen hidden">
+      <div class="screen-inner">
+        <h2>Como quer correr?</h2>
+        <div class="menu stacked">
+          <button type="button" data-action="mode-cup" class="primary">Campeonato</button>
+          <button type="button" data-action="mode-quick">Corrida rápida</button>
+          <button type="button" data-action="open-shop">Oficina</button>
+          <button type="button" data-action="back-cars">Trocar carro</button>
+        </div>
+        <p class="hint" id="money-hint">Seu dinheiro: $0</p>
+      </div>
+    </section>
+
+    <section id="screen-tracks" class="screen hidden">
+      <div class="screen-inner wide">
+        <h2>Escolha a pista</h2>
+        <div id="track-grid" class="grid-tracks"></div>
+        <div class="menu">
+          <button type="button" data-action="track-go" class="primary">Largar</button>
+          <button type="button" data-action="back-mode">Voltar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-shop" class="screen hidden">
+      <div class="screen-inner wide">
+        <h2>Oficina</h2>
+        <p class="sub" id="shop-money">Dinheiro: $0</p>
+        <div id="shop-grid" class="shop-grid"></div>
+        <div class="menu">
+          <button type="button" data-action="shop-back" class="primary">Pronto</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-pause" class="screen hidden dim">
+      <div class="screen-inner card-panel">
+        <h2>Pausa</h2>
+        <ul class="howto compact">
+          <li>Setas ou W A S D para dirigir</li>
+          <li>Shift para nitro · Esc para voltar</li>
+        </ul>
+        <div class="menu stacked">
+          <button type="button" data-action="resume" class="primary">Continuar</button>
+          <button type="button" data-action="restart">Recomeçar</button>
+          <button type="button" data-action="quit-race">Sair da corrida</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-results" class="screen hidden">
+      <div class="screen-inner wide">
+        <h2 id="results-title">Chegada</h2>
+        <p class="sub" id="results-sub"></p>
+        <table class="board" id="results-table"></table>
+        <div class="menu">
+          <button type="button" data-action="results-next" class="primary">Continuar</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-standings" class="screen hidden">
+      <div class="screen-inner wide">
+        <h2 id="standings-title">Campeonato</h2>
+        <p class="sub" id="standings-sub"></p>
+        <table class="board" id="standings-table"></table>
+        <div class="menu">
+          <button type="button" data-action="cup-next" class="primary">Próxima etapa</button>
+          <button type="button" data-action="open-shop">Oficina</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="top-tools">
+      <button type="button" id="btn-mute" title="Som">Som</button>
+      <button type="button" id="btn-full" title="Tela cheia">Tela cheia</button>
+    </div>
+  </div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
