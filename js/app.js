@@ -1,6 +1,7 @@
 import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS } from "./data.js";
 import { AudioBus } from "./audio.js";
 import { GameEngine } from "./engine.js";
+import { getModo } from "./modo.js";
 
 const SAVE_KEY = "relampago-save";
 
@@ -37,7 +38,9 @@ class App {
     this.save = loadSave();
     this.audio = new AudioBus();
     this.engine = new GameEngine($("view"), this.audio);
-    this.keys = { up: false, down: false, left: false, right: false, nitro: false };
+    this.phone = getModo() === "celular";
+    this.kb = { up: false, down: false, left: false, right: false, nitro: false };
+    this.pad = { up: false, down: false, left: false, right: false, nitro: false };
     this.screen = "title";
     this.carId = this.save.carId;
     this.trackId = TRACKS[0].id;
@@ -45,6 +48,7 @@ class App {
     this.cup = null;
     this.afterShop = "mode";
     this.menuIndex = 0;
+    document.body.classList.add(this.phone ? "modo-celular" : "modo-pc");
     this.bind();
     this.renderCars();
     this.renderTracks();
@@ -56,8 +60,10 @@ class App {
   }
 
   bind() {
-    addEventListener("keydown", (e) => this.onKey(e, true));
-    addEventListener("keyup", (e) => this.onKey(e, false));
+    if (!this.phone) {
+      addEventListener("keydown", (e) => this.onKey(e, true));
+      addEventListener("keyup", (e) => this.onKey(e, false));
+    }
     document.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => {
         this.audio.unlock();
@@ -65,31 +71,67 @@ class App {
         this.act(btn.dataset.action);
       });
     });
-    $("btn-mute").addEventListener("click", () => {
+    $("btn-mute")?.addEventListener("click", () => {
       this.audio.unlock();
       this.audio.toggleMute();
       this.syncMute();
     });
-    $("btn-full").addEventListener("click", () => {
+    $("btn-full")?.addEventListener("click", () => {
       this.audio.unlock();
       if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
       else document.exitFullscreen?.();
     });
+    if (this.phone) {
+      this.bindPads();
+      addEventListener("touchmove", (e) => {
+        if (this.screen === "race" || !e.target.closest?.(".screen")) e.preventDefault();
+      }, { passive: false });
+      addEventListener("gesturestart", (e) => e.preventDefault());
+      addEventListener("orientationchange", () => this.syncRotate());
+      matchMedia("(orientation: portrait)").addEventListener?.("change", () => this.syncRotate());
+    }
+  }
+
+  bindPads() {
+    document.querySelectorAll("[data-hold]").forEach((el) => {
+      const key = el.dataset.hold;
+      const set = (on) => {
+        this.pad[key] = on;
+        el.classList.toggle("held", on);
+      };
+      el.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        el.setPointerCapture?.(e.pointerId);
+        this.audio.unlock();
+        set(true);
+      });
+      const off = (e) => {
+        e.preventDefault();
+        set(false);
+      };
+      el.addEventListener("pointerup", off);
+      el.addEventListener("pointercancel", off);
+      el.addEventListener("lostpointercapture", off);
+    });
+  }
+
+  driveKeys() {
+    return this.phone ? this.pad : this.kb;
   }
 
   onKey(e, down) {
     const k = e.key;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(k)) e.preventDefault();
-    if (k === "ArrowUp" || k === "w" || k === "W") this.keys.up = down;
-    if (k === "ArrowDown" || k === "s" || k === "S") this.keys.down = down;
-    if (k === "ArrowLeft" || k === "a" || k === "A") this.keys.left = down;
-    if (k === "ArrowRight" || k === "d" || k === "D") this.keys.right = down;
+    if (k === "ArrowUp" || k === "w" || k === "W") this.kb.up = down;
+    if (k === "ArrowDown" || k === "s" || k === "S") this.kb.down = down;
+    if (k === "ArrowLeft" || k === "a" || k === "A") this.kb.left = down;
+    if (k === "ArrowRight" || k === "d" || k === "D") this.kb.right = down;
     if (k === " " || k === "Spacebar" || e.code === "Space") {
       e.preventDefault();
-      this.keys.nitro = down;
+      this.kb.nitro = down;
     }
-    if (k === "Shift" || e.code === "ShiftLeft" || e.code === "ShiftRight") this.keys.nitro = down;
-    if (e.shiftKey) this.keys.nitro = true;
+    if (k === "Shift" || e.code === "ShiftLeft" || e.code === "ShiftRight") this.kb.nitro = down;
+    if (e.shiftKey) this.kb.nitro = true;
     if (!down) return;
     this.audio.unlock();
     if (k === "m" || k === "M") {
@@ -120,17 +162,32 @@ class App {
 
   show(name) {
     this.screen = name;
+    document.body.classList.toggle("racing", name === "race");
     document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
     const hud = $("hud");
     const count = $("countdown");
+    const pads = $("pads");
     if (name === "race") {
-      hud.classList.remove("hidden");
+      hud?.classList.remove("hidden");
+      if (this.phone) pads?.classList.remove("hidden");
+      else pads?.classList.add("hidden");
+      this.syncRotate();
       return;
     }
-    hud.classList.add("hidden");
-    count.classList.add("hidden");
+    hud?.classList.add("hidden");
+    count?.classList.add("hidden");
+    pads?.classList.add("hidden");
+    this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
     const el = $(`screen-${name}`);
     if (el) el.classList.remove("hidden");
+    this.syncRotate();
+  }
+
+  syncRotate() {
+    const hint = $("rotate-hint");
+    if (!hint) return;
+    const portrait = matchMedia("(orientation: portrait)").matches;
+    hint.classList.toggle("hidden", !(this.phone && this.screen === "race" && portrait));
   }
 
   act(name) {
@@ -359,7 +416,7 @@ class App {
     const last = this._now || now;
     const dt = Math.min(0.05, (now - last) / 1000);
     this._now = now;
-    this.engine.setKeys(this.keys);
+    this.engine.setKeys(this.driveKeys());
     if (this.screen === "race" || this.screen === "title" || this.screen === "cars" || this.screen === "mode" || this.screen === "tracks" || this.screen === "howto" || this.screen === "shop") {
       this.engine.update(dt);
     }
@@ -367,20 +424,20 @@ class App {
     if (this.screen === "race") this.paintHud();
     const p = this.engine.player;
     const max = p ? this.engine.maxSpeed(p) : 1;
-    this.audio.setEngine((p?.speed || 0) / max, this.keys.nitro && (p?.nitro || 0) > 0);
+    this.audio.setEngine((p?.speed || 0) / max, this.driveKeys().nitro && (p?.nitro || 0) > 0);
     requestAnimationFrame((t) => this.loop(t));
   }
 
   paintHud() {
     const h = this.engine.hud();
     $("hud-speed").textContent = String(h.speed);
-    $("hud-speed").classList.toggle("boost", this.keys.nitro && h.nitro > 0);
+    $("hud-speed").classList.toggle("boost", this.driveKeys().nitro && h.nitro > 0);
     $("hud-pos").innerHTML = `${h.place}<span>/${h.field}</span>`;
     $("hud-lap").innerHTML = `${h.lap}<span>/${h.laps}</span>`;
     $("hud-time").textContent = fmt(h.time);
     $("hud-nitro").style.width = `${Math.round(h.nitro * 100)}%`;
     $("hud-fuel").style.width = `${Math.round(h.fuel * 100)}%`;
-    $("hud-nitro").parentElement.classList.toggle("hot", this.keys.nitro && h.nitro > 0);
+    $("hud-nitro").parentElement.classList.toggle("hot", this.driveKeys().nitro && h.nitro > 0);
     const toast = $("toast");
     if (h.toast) {
       toast.textContent = h.toast;
