@@ -8,7 +8,7 @@ const FOV = 100;
 const CAM_H = 1000;
 const CAM_DEPTH = 1 / Math.tan(((FOV / 2) * Math.PI) / 180);
 const PLAYER_Z = CAM_H * CAM_DEPTH;
-const CENTRIFUGAL = 0.155;
+const CENTRIFUGAL = 0.09;
 const SPRITE_SCALE = 0.38;
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
@@ -334,7 +334,7 @@ export class GameEngine {
         spec: applyUpgrades(base, { engine: 0, tires: 0, nitro: 0 }),
         car: base,
         x: [-0.42, 0.38, -0.12][i] || 0.2,
-        z: (i + 1) * SEG * 5,
+        z: (i + 1) * SEG * 2.8,
         speed: 0,
         nitro: 1,
         fuel: 1,
@@ -427,8 +427,8 @@ export class GameEngine {
     const left = this.keys.left;
     const right = this.keys.right;
     const boost = this.keys.nitro && p.nitro > 0 && p.fuel > 0;
-    const max = this.maxSpeed(p) * (boost ? 1.2 + (p.spec.nitro - 1) * 0.28 : 1);
-    const accel = 3200 * p.spec.accel * (boost ? 1.55 : 1);
+    const max = this.maxSpeed(p) * (boost ? 1.32 + (p.spec.nitro - 1) * 0.3 : 1);
+    const accel = 3400 * p.spec.accel * (boost ? 1.85 : 1);
     if (up) p.speed += accel * dt;
     else p.speed -= 520 * dt;
     if (down) p.speed -= 3800 * dt;
@@ -440,13 +440,13 @@ export class GameEngine {
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
     const grip = p.spec.grip;
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    this.steer = lerp(this.steer, want, 1 - Math.pow(0.025, dt));
-    const steerPower = 2.35 * (0.45 + 0.55 * speedPct) * (0.75 + grip * 0.25);
-    this.playerX += this.steer * steerPower * dt;
-    const look = this.findSeg(this.position + PLAYER_Z + 10 * SEG);
-    this.playerX += (-look.curve * 0.012 * speedPct) * dt;
-    if (off) this.playerX -= Math.sign(this.playerX) * 0.55 * dt;
-    this.slip = lerp(this.slip, this.steer * speedPct * (1.05 / grip), 8 * dt);
+    this.steer = lerp(this.steer, want, 7 * dt);
+    this.playerX += this.steer * (0.92 + grip * 0.18) * (0.4 + 0.6 * speedPct) * dt;
+    const look = this.findSeg(this.position + PLAYER_Z + 12 * SEG);
+    this.playerX += (-look.curve * 0.034 * speedPct) * dt;
+    if (!want) this.playerX = lerp(this.playerX, clamp(-look.curve * 0.03, -0.25, 0.25), 1.25 * dt);
+    if (off) this.playerX -= Math.sign(this.playerX) * 0.85 * dt;
+    this.slip = lerp(this.slip, this.steer * speedPct * 0.7, 6 * dt);
     p.steer = this.slip;
 
     if (boost) {
@@ -454,7 +454,7 @@ export class GameEngine {
       p.fuel = Math.max(0, p.fuel - dt * 0.05);
       this.fovKick = lerp(this.fovKick, 1, 6 * dt);
       this.toast = "NITRO";
-      this.toastT = 0.25;
+      this.toastT = 0.7;
     } else {
       p.nitro = Math.min(1, p.nitro + dt * 0.08);
       this.fovKick = lerp(this.fovKick, 0, 4 * dt);
@@ -493,7 +493,7 @@ export class GameEngine {
       const look = this.findSeg(c.z + PLAYER_Z + 18 * SEG);
       const here = this.findSeg(c.z + PLAYER_Z);
       const danger = Math.abs(look.curve) + Math.abs(here.curve);
-      let target = this.maxSpeed(c) * (0.68 + c.skill * 0.24) * (1 - danger * 0.042);
+      let target = this.maxSpeed(c) * (0.58 + c.skill * 0.2) * (1 - danger * 0.05);
       const gap = playerLead - this.progress(c);
       if (gap > len * 0.08) target *= 1.08;
       if (gap < -len * 0.1) target *= 0.94;
@@ -852,7 +852,7 @@ export class GameEngine {
       const p1 = pack.p1;
       const destX = p1.x + p1.scale * c.x * ROAD * w / 2;
       const destY = p1.y;
-      const s = Math.max(0.35, p1.scale * SPRITE_SCALE * ROAD * (w / 520));
+      const s = clamp(p1.scale * SPRITE_SCALE * ROAD * (w / 560), 0.22, 2.4);
       sprites.push({ z: dz, destX, destY, s, c, clip: pack.clip });
     }
     sprites.sort((a, b) => b.z - a.z);
