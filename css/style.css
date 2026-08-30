@@ -335,6 +335,7 @@ kbd {
   display: block;
   text-shadow: 0 6px 20px rgba(0,0,0,0.55);
 }
+.speedo strong.boost { color: #7cf6ff; text-shadow: 0 0 18px #49d6ff; }
 .speedo em { color: var(--muted); font-style: normal; letter-spacing: 0.18em; }
 
 .toast {

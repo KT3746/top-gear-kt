@@ -368,6 +368,7 @@ class App {
   paintHud() {
     const h = this.engine.hud();
     $("hud-speed").textContent = String(h.speed);
+    $("hud-speed").classList.toggle("boost", this.keys.nitro && h.nitro > 0);
     $("hud-pos").innerHTML = `${h.place}<span>/${h.field}</span>`;
     $("hud-lap").innerHTML = `${h.lap}<span>/${h.laps}</span>`;
     $("hud-time").textContent = fmt(h.time);
