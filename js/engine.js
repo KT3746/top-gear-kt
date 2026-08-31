@@ -3,7 +3,6 @@ import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js";
 const SEG = 200;
 const ROAD = 2100;
 const LANES = 3;
-const DRAW = 260;
 const FOV = 100;
 const CAM_H = 1000;
 const CAM_DEPTH = 1 / Math.tan(((FOV / 2) * Math.PI) / 180);
@@ -100,15 +99,21 @@ function buildTrack(def) {
   return { segs, map, length: segs.length * SEG, def };
 }
 
+function isIOSLike() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 function project(p, camX, camY, camZ, w, h) {
   const cx = p.x - camX;
   const cy = p.y - camY;
   const cz = p.z - camZ;
   const scale = cz <= 1 ? 0 : CAM_DEPTH / cz;
   return {
-    x: Math.round(w / 2 + scale * cx * w / 2),
-    y: Math.round(h / 2 - scale * cy * h / 2),
-    w: Math.round(scale * ROAD * w / 2),
+    x: w / 2 + scale * cx * w / 2,
+    y: h / 2 - scale * cy * h / 2,
+    w: scale * ROAD * w / 2,
     scale,
     cz,
   };
@@ -276,8 +281,16 @@ export class GameEngine {
     this.cars = [];
     this.player = null;
     this.camX = 0;
+    this.camY = CAM_H;
+    this.camZ = 0;
     this.position = 0;
     this.playerX = 0;
+    this._ios = isIOSLike();
+    this._phone = false;
+    this._skyKey = "";
+    this._proj = [];
+    this._lut = null;
+    this._frame = 0;
     this.steer = 0;
     this.slip = 0;
     this.fovKick = 0;
@@ -298,12 +311,27 @@ export class GameEngine {
     this.playerCarId = "fenix";
     this.resize();
     addEventListener("resize", () => this.resize());
+    visualViewport?.addEventListener("resize", () => this.resize());
+    visualViewport?.addEventListener("scroll", () => this.resize());
+  }
+
+  setPhone(on) {
+    this._phone = !!on;
   }
 
   resize() {
-    const dpr = Math.min(devicePixelRatio || 1, 2);
-    this.canvas.width = Math.max(640, innerWidth) * dpr;
-    this.canvas.height = Math.max(360, innerHeight) * dpr;
+    const box = this.canvas.parentElement || this.canvas;
+    const vv = visualViewport;
+    const iw = Math.max(1, box.clientWidth || vv?.width || innerWidth);
+    const ih = Math.max(1, box.clientHeight || vv?.height || innerHeight);
+    const dprCap = this._ios || this._phone ? 1.5 : 2;
+    const dpr = Math.min(devicePixelRatio || 1, dprCap);
+    const bw = Math.round(iw * dpr);
+    const bh = Math.round(ih * dpr);
+    if (this.canvas.width === bw && this.canvas.height === bh) return;
+    this.canvas.width = bw;
+    this.canvas.height = bh;
+    this._skyKey = "";
   }
 
   findSeg(z) {
@@ -319,6 +347,21 @@ export class GameEngine {
   loadTrack(id) {
     const def = TRACKS.find((t) => t.id === id) || TRACKS[0];
     this.track = buildTrack(def);
+    const lut = [];
+    for (let i = 0; i < 32; i++) {
+      const fogT = Math.pow(i / 31, 1.15) * def.fog;
+      lut.push({
+        grass0: mixHex(def.grass[0], def.fogColor, fogT),
+        grass1: mixHex(def.grass[1], def.fogColor, fogT),
+        road0: mixHex(def.road[0], def.fogColor, fogT),
+        road1: mixHex(def.road[1], def.fogColor, fogT),
+        rumble0: mixHex(def.rumble[0], def.fogColor, fogT),
+        rumble1: mixHex(def.rumble[1], def.fogColor, fogT),
+        lane: mixHex(def.lane, def.fogColor, fogT),
+      });
+    }
+    this._lut = lut;
+    this._skyKey = "";
   }
 
   setupField(playerCarId, upgrades, opponentCarIds) {
@@ -393,6 +436,10 @@ export class GameEngine {
     this.keys = { up: false, down: false, left: false, right: false, nitro: false };
     this.cars.forEach((c) => { c._lastZ = c.z; c._prevZ = c.z; c.laps = 0; c.finished = false; });
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
+    this.camZ = this.position;
+    this.camX = this.playerX;
+    const seg0 = this.findSeg(this.position);
+    this.camY = CAM_H + lerp(seg0.p1.y, seg0.p2.y, this.percent(this.position));
     this.audio.startMusic("race");
   }
 
@@ -404,6 +451,10 @@ export class GameEngine {
     this.player.speed = 210;
     this.player.z = PLAYER_Z;
     this.position = 0;
+    this.camZ = 0;
+    this.camX = this.playerX || 0;
+    const segA = this.findSeg(0);
+    this.camY = CAM_H + lerp(segA.p1.y, segA.p2.y, 0);
     this.cars.forEach((c, i) => {
       if (!c.human) {
         c.speed = 180 + i * 12;
@@ -428,16 +479,21 @@ export class GameEngine {
     if (!this.track || this.mode === "idle") return;
     if (this.mode === "attract") {
       this.autoDrive(dt);
+      this.followCamera(dt);
       return;
     }
     if (this.mode !== "race" || this.finished) {
-      if (this.finished) this.simulateWorld(dt, false, false);
+      if (this.finished) {
+        this.simulateWorld(dt, false, false);
+        this.followCamera(dt);
+      }
       return;
     }
     if (this.countdown > 0) {
       // Tempo de parede (não o dt da física, que é limitado) para o 3-2-1 não “grudar”.
       this.countdown = Math.max(0, this.countdown - Math.min(0.25, rawDt > 0 ? rawDt : dt));
       this.simulateWorld(dt, true, true);
+      this.followCamera(dt);
       return;
     }
     this.drivePlayer(dt);
@@ -447,6 +503,7 @@ export class GameEngine {
     this.lapTime += dt;
     this.collisions();
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
+    this.followCamera(dt);
     this.pickups();
     this.rank();
     this.checkLaps();
@@ -516,7 +573,6 @@ export class GameEngine {
     }
     p.fuel = Math.max(0, p.fuel - dt * (0.0035 + speedPct * 0.0028) / p.spec.fuel);
     if (off) {
-      this.shake = Math.max(this.shake, 5);
       if (this.toast !== "NITRO") {
         this.toast = "FORA DA PISTA";
         this.toastT = 0.3;
@@ -612,6 +668,20 @@ export class GameEngine {
     if (this.toastT > 0) this.toastT -= dt;
   }
 
+  followCamera(dt) {
+    if (!this.track) return;
+    const len = this.track.length;
+    const follow = 1 - Math.exp(-(this._phone || this._ios ? 12 : 18) * dt);
+    this.camX = lerp(this.camX, this.playerX, follow);
+    const seg = this.findSeg(this.position);
+    const t = this.percent(this.position);
+    const wantY = CAM_H + lerp(seg.p1.y, seg.p2.y, t);
+    this.camY = lerp(this.camY, wantY, 1 - Math.exp(-10 * dt));
+    let zStep = wrapDist(this.position, this.camZ, len);
+    const zCap = SEG * 1.25;
+    this.camZ = wrapZ(this.camZ + clamp(zStep, -zCap, zCap), len);
+  }
+
   collisions() {
     const len = this.track.length;
     const halfW = CAR_HALF_W;
@@ -637,10 +707,9 @@ export class GameEngine {
           if (sameLane) {
             const dNow = wrapDist(ahead.z, behind.z, len);
             const push = minZ - dNow;
-            if (push > 0) behind.z = wrapZ(behind.z - push, len);
-            const bounceX = (behind.x >= ahead.x ? 1 : -1) * 0.1;
-            behind.x = clamp(behind.x + bounceX, -1.65, 1.65);
-            ahead.x = clamp(ahead.x - bounceX * 0.32, -1.65, 1.65);
+            if (push > 0 && !behind.human) behind.z = wrapZ(behind.z - push, len);
+            const side = Math.sign(behind.x - ahead.x) || 1;
+            behind.x = clamp(ahead.x + side * Math.max(halfW * 1.65, adx), -1.65, 1.65);
             behind.speed = Math.min(behind.speed, Math.max(0, ahead.speed * 0.42));
             ahead.speed *= 0.97;
           } else {
@@ -799,25 +868,30 @@ export class GameEngine {
     const w = this.canvas.width;
     const h = this.canvas.height;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (this.shake > 0) ctx.translate((Math.random() - 0.5) * this.shake, (Math.random() - 0.5) * this.shake);
+    this._frame += 1;
     if (!this.track) {
       ctx.fillStyle = "#070b14";
       ctx.fillRect(0, 0, w, h);
       return;
     }
     const def = this.track.def;
-    const sky = ctx.createLinearGradient(0, 0, 0, h * 0.62);
-    sky.addColorStop(0, def.sky[0]);
-    sky.addColorStop(1, def.sky[1]);
-    ctx.fillStyle = sky;
+    const skyKey = `${w}x${h}:${def.id}`;
+    if (this._skyKey !== skyKey) {
+      const sky = ctx.createLinearGradient(0, 0, 0, h * 0.62);
+      sky.addColorStop(0, def.sky[0]);
+      sky.addColorStop(1, def.sky[1]);
+      this._skyGrad = sky;
+      const sun = def.sun;
+      const sg = ctx.createRadialGradient(w * sun.x, h * sun.y, 8, w * sun.x, h * sun.y, h * 0.35);
+      sg.addColorStop(0, sun.color);
+      sg.addColorStop(0.18, sun.glow);
+      sg.addColorStop(1, "rgba(0,0,0,0)");
+      this._sunGrad = sg;
+      this._skyKey = skyKey;
+    }
+    ctx.fillStyle = this._skyGrad;
     ctx.fillRect(0, 0, w, h);
-
-    const sun = def.sun;
-    const sg = ctx.createRadialGradient(w * sun.x, h * sun.y, 8, w * sun.x, h * sun.y, h * 0.35);
-    sg.addColorStop(0, sun.color);
-    sg.addColorStop(0.18, sun.glow);
-    sg.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = sg;
+    ctx.fillStyle = this._sunGrad;
     ctx.fillRect(0, 0, w, h * 0.62);
 
     this.drawHills(w, h, def);
@@ -828,7 +902,8 @@ export class GameEngine {
       ctx.fillRect(0, 0, w, h);
       ctx.strokeStyle = `rgba(255,255,255,${0.08 * this.fovKick})`;
       ctx.lineWidth = 2;
-      for (let i = 0; i < 10; i++) {
+      const lines = this._phone || this._ios ? 6 : 10;
+      for (let i = 0; i < lines; i++) {
         const y = h * 0.55 + i * 18;
         ctx.beginPath();
         ctx.moveTo(w * 0.5 - 40 - i * 40, y);
@@ -842,13 +917,14 @@ export class GameEngine {
 
   drawHills(w, h, def) {
     const ctx = this.ctx;
-    const drift = this.playerX * 55 + (this.findSeg(this.position).curve || 0) * 28;
+    const drift = this.camX * 55 + (this.findSeg(this.camZ).curve || 0) * 28;
     const base = h * 0.545;
     ctx.fillStyle = mixHex(def.grass[1], def.sky[0], 0.4);
     ctx.beginPath();
     ctx.moveTo(-w * 0.1, base);
-    for (let i = 0; i <= 14; i++) {
-      const x = (i / 14) * w * 1.2 - drift - w * 0.1;
+    const steps = this._phone || this._ios ? 10 : 14;
+    for (let i = 0; i <= steps; i++) {
+      const x = (i / steps) * w * 1.2 - drift - w * 0.1;
       const y = h * 0.36 + Math.sin(i * 0.7 + 0.4) * h * 0.08 + Math.sin(i * 1.6) * h * 0.03;
       ctx.lineTo(x, y);
     }
@@ -857,8 +933,9 @@ export class GameEngine {
     ctx.fillStyle = mixHex(def.grass[0], def.fogColor, 0.25);
     ctx.beginPath();
     ctx.moveTo(-w * 0.1, base);
-    for (let i = 0; i <= 16; i++) {
-      const x = (i / 16) * w * 1.2 - drift * 0.45 - w * 0.1;
+    const steps2 = this._phone || this._ios ? 10 : 16;
+    for (let i = 0; i <= steps2; i++) {
+      const x = (i / steps2) * w * 1.2 - drift * 0.45 - w * 0.1;
       const y = h * 0.44 + Math.sin(i * 1.1 + 1.7) * h * 0.045;
       ctx.lineTo(x, y);
     }
@@ -866,81 +943,108 @@ export class GameEngine {
     ctx.fill();
   }
 
+  drawDistance() {
+    if (this._phone || this._ios) return 200;
+    return 230;
+  }
+
   drawRoad(w, h, def) {
     const ctx = this.ctx;
     const segs = this.track.segs;
-    const baseSeg = this.findSeg(this.position);
-    const t = this.percent(this.position);
-    const camY = CAM_H + lerp(baseSeg.p1.y, baseSeg.p2.y, t);
+    const drawN = this.drawDistance();
+    const camZ = this.camZ;
+    const baseSeg = this.findSeg(camZ);
+    const t = this.percent(camZ);
+    const camY = this.camY;
     const playerSegI = baseSeg.index;
+    const camXWorld = this.camX * ROAD;
     let maxY = h;
-    const projected = [];
+    if (this._proj.length !== drawN) {
+      this._proj = Array.from({ length: drawN }, () => ({ seg: null, p1: null, p2: null, clip: 0 }));
+    }
+    const projected = this._proj;
     let x = 0;
     let dx = -(t * baseSeg.curve);
-    for (let n = 0; n < DRAW; n++) {
+    let prevP2 = null;
+    const spriteUntil = Math.floor(drawN * 0.52);
+    for (let n = 0; n < drawN; n++) {
       const seg = segs[(playerSegI + n) % segs.length];
       const looped = (playerSegI + n) >= segs.length;
-      const camZ = this.position - (looped ? this.track.length : 0);
-      const p1 = project(seg.p1, this.playerX * ROAD - x, camY, camZ, w, h);
-      const p2 = project(seg.p2, this.playerX * ROAD - x - dx, camY, camZ, w, h);
-      projected.push({ seg, p1, p2, clip: maxY });
+      const cz = camZ - (looped ? this.track.length : 0);
+      const p1 = prevP2 || project(seg.p1, camXWorld - x, camY, cz, w, h);
+      const p2 = project(seg.p2, camXWorld - x - dx, camY, cz, w, h);
+      const pack = projected[n];
+      pack.seg = seg;
+      pack.p1 = p1;
+      pack.p2 = p2;
+      pack.clip = maxY;
+      prevP2 = p2;
       x += dx;
       dx += seg.curve;
     }
 
-    for (let n = 0; n < DRAW; n++) {
+    const lut = this._lut;
+    const lutMax = lut ? lut.length - 1 : 0;
+    for (let n = 0; n < drawN; n++) {
       const pack = projected[n];
       const { seg, p1, p2 } = pack;
-      const hidden = p1.cz <= CAM_DEPTH || p2.y >= p1.y || p2.y >= maxY;
       pack.clip = maxY;
-      if (hidden) continue;
-      const fogT = Math.pow(n / DRAW, 1.15) * def.fog;
-      const grass = mixHex(seg.light ? def.grass[0] : def.grass[1], def.fogColor, fogT);
-      const road = mixHex(seg.light ? def.road[0] : def.road[1], def.fogColor, fogT);
-      const rumble = mixHex(seg.light ? def.rumble[0] : def.rumble[1], def.fogColor, fogT);
-      const lane = seg.light ? mixHex(def.lane, def.fogColor, fogT) : null;
-      poly(ctx, 0, p1.y + 1, w, p1.y + 1, w, p2.y, 0, p2.y, grass);
+      if (p1.cz <= 1 && p2.cz <= 1) continue;
+      if (p1.y < p2.y - 6) continue;
+      if (p2.y >= maxY && p1.y >= maxY) continue;
+      const pal = lut[Math.min(lutMax, (n / drawN * lutMax) | 0)];
+      const grass = seg.light ? pal.grass0 : pal.grass1;
+      const road = seg.light ? pal.road0 : pal.road1;
+      const rumble = seg.light ? pal.rumble0 : pal.rumble1;
+      poly(ctx, 0, p1.y, w, p1.y, w, p2.y, 0, p2.y, grass);
       const r1 = rumbleW(p1.w), r2 = rumbleW(p2.w);
       poly(ctx, p1.x - p1.w - r1, p1.y, p1.x - p1.w, p1.y, p2.x - p2.w, p2.y, p2.x - p2.w - r2, p2.y, rumble);
       poly(ctx, p1.x + p1.w + r1, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x + p2.w + r2, p2.y, rumble);
       poly(ctx, p1.x - p1.w, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x - p2.w, p2.y, road);
-      if (lane && p1.w > 12) {
+      if (seg.light && p1.w > 18) {
         const lanew1 = p1.w * 2 / LANES;
         const lanew2 = p2.w * 2 / LANES;
         let lanex1 = p1.x - p1.w + lanew1;
         let lanex2 = p2.x - p2.w + lanew2;
         const l1 = laneW(p1.w), l2 = laneW(p2.w);
         for (let laneN = 1; laneN < LANES; laneN++, lanex1 += lanew1, lanex2 += lanew2) {
-          poly(ctx, lanex1 - l1 / 2, p1.y, lanex1 + l1 / 2, p1.y, lanex2 + l2 / 2, p2.y, lanex2 - l2 / 2, p2.y, lane);
+          poly(ctx, lanex1 - l1 / 2, p1.y, lanex1 + l1 / 2, p1.y, lanex2 + l2 / 2, p2.y, lanex2 - l2 / 2, p2.y, pal.lane);
         }
       }
       if (seg.index < 6) {
         const stripe = seg.index % 2 === 0 ? "#f4f4f4" : "#d1242f";
         poly(ctx, p1.x - p1.w, p1.y, p1.x + p1.w, p1.y, p2.x + p2.w, p2.y, p2.x - p2.w, p2.y, stripe);
       }
-      maxY = p1.y;
+      if (p1.y < maxY) maxY = p1.y;
+    }
+    if (maxY > h * 0.5) {
+      const pal = lut[lutMax];
+      ctx.fillStyle = pal.grass1;
+      ctx.fillRect(0, h * 0.48, w, maxY - h * 0.48);
     }
 
-    for (let n = DRAW - 1; n >= 0; n--) {
+    for (let n = spriteUntil; n >= 0; n--) {
       const { seg, p1, clip } = projected[n];
-      if (!p1.scale) continue;
+      if (!p1?.scale || p1.scale < 0.018) continue;
       for (const spr of seg.sprites) {
-        const destX = p1.x + p1.scale * spr.offset * ROAD * w / 2;
         const destY = p1.y;
-        const s = p1.scale * SPRITE_SCALE * ROAD * (w / 880) * spr.scale;
         if (destY > clip) continue;
+        const destX = p1.x + p1.scale * spr.offset * ROAD * w / 2;
+        const s = p1.scale * SPRITE_SCALE * ROAD * (w / 880) * spr.scale;
+        if (s < 0.14) continue;
         drawObject(ctx, spr.kind, destX, destY, s, def.night);
       }
       if (seg.pickup && !seg.pickup.taken) {
+        if (p1.y > clip) continue;
         const destX = p1.x + p1.scale * seg.pickup.x * ROAD * w / 2;
         const s = p1.scale * SPRITE_SCALE * ROAD * (w / 900) * 0.9;
-        if (p1.y <= clip) drawObject(ctx, "fuel", destX, p1.y, s, def.night);
+        drawObject(ctx, "fuel", destX, p1.y, s, def.night);
       }
     }
 
     const sprites = [];
     for (const c of this.cars) {
-      const spr = this.projectCar(c, projected, w, h);
+      const spr = this.projectCar(c, projected, w, h, drawN);
       if (spr) sprites.push(spr);
     }
     sprites.sort((a, b) => b.z - a.z);
@@ -951,12 +1055,23 @@ export class GameEngine {
     }
   }
 
-  projectCar(c, projected, w, h) {
+  projectCar(c, projected, w, h, drawN) {
+    if (c.human) {
+      return {
+        z: PLAYER_Z,
+        destX: w / 2,
+        destY: h * 0.835,
+        s: CAR_SCALE_AT_PLAYER * (h / 720),
+        c,
+        clip: h,
+        human: true,
+      };
+    }
     const len = this.track.length;
-    const dz = wrapDist(c.z, this.position, len);
-    const near = c.human ? PLAYER_Z * 0.5 : 70;
-    if (dz < near || dz > (DRAW - 2) * SEG) return null;
-    const n = clamp(Math.floor(dz / SEG), 0, DRAW - 2);
+    const camZ = this.camZ;
+    const dz = wrapDist(c.z, camZ, len);
+    if (dz < 70 || dz > (drawN - 2) * SEG) return null;
+    const n = clamp(Math.floor(dz / SEG), 0, drawN - 2);
     const pack = projected[n];
     const nxt = projected[n + 1] || pack;
     if (!pack?.p1?.scale) return null;
@@ -969,18 +1084,6 @@ export class GameEngine {
     let s = carScreenScale(sc, h);
     s = clamp(s, 0.14, (h / 720) * 8);
     const ground = destY - s * 18;
-    if (c.human) {
-      const bounce = Math.sin(c.z * 0.025) * (c.speed * 0.00035);
-      return {
-        z: dz,
-        destX: w / 2 + (c.steer || 0) * w * 0.02,
-        destY: clamp(ground + bounce, h * 0.76, h * 0.92),
-        s,
-        c,
-        clip: pack.clip,
-        human: true,
-      };
-    }
     return {
       z: dz,
       destX: lerp(p1.x, p2.x, pct) + sc * c.x * ROAD * w / 2,

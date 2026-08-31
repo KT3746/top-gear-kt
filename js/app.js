@@ -91,6 +91,8 @@ class App {
     this.afterShop = "mode";
     this.menuIndex = 0;
     document.body.classList.add(this.phone ? "modo-celular" : "modo-pc");
+    this.engine.setPhone(this.phone);
+    this._immersive = false;
     this.bind();
     this.renderCars();
     this.renderTracks();
@@ -122,8 +124,7 @@ class App {
     });
     $("btn-full")?.addEventListener("click", () => {
       this.audio.unlock();
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-      else document.exitFullscreen?.();
+      this.toggleFull();
     });
     if (this.phone) {
       this.bindPads();
@@ -131,9 +132,16 @@ class App {
         if (this.screen === "race" || !e.target.closest?.(".screen")) e.preventDefault();
       }, { passive: false });
       addEventListener("gesturestart", (e) => e.preventDefault());
-      addEventListener("orientationchange", () => this.syncRotate());
+      addEventListener("orientationchange", () => {
+        this.syncRotate();
+        this.hideSafariChrome();
+        this.engine.resize();
+      });
       matchMedia("(orientation: portrait)").addEventListener?.("change", () => this.syncRotate());
     }
+    addEventListener("fullscreenchange", () => this.syncFullBtn());
+    addEventListener("webkitfullscreenchange", () => this.syncFullBtn());
+    this.syncFullBtn();
   }
 
   bindPads() {
@@ -195,8 +203,7 @@ class App {
       this.syncMute();
     }
     if (k === "f" || k === "F") {
-      if (!document.fullscreenElement) document.documentElement.requestFullscreen?.();
-      else document.exitFullscreen?.();
+      this.toggleFull();
     }
     if (k === "Escape") {
       if (this.screen === "race") this.act("pause");
@@ -214,6 +221,90 @@ class App {
 
   syncMute() {
     $("btn-mute").textContent = this.audio.muted ? "Som off" : "Som";
+  }
+
+  isIPhone() {
+    return /iPhone|iPod/i.test(navigator.userAgent || "");
+  }
+
+  isStandalone() {
+    return !!(navigator.standalone || matchMedia("(display-mode: standalone)").matches);
+  }
+
+  fsElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  canFullscreenApi() {
+    if (this.isIPhone()) return false;
+    const el = document.documentElement;
+    return typeof (el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen) === "function";
+  }
+
+  hideSafariChrome() {
+    try {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollIntoView?.({ block: "start" });
+      requestAnimationFrame(() => window.scrollTo(0, 0));
+    } catch (_) { /* Safari antigo */ }
+  }
+
+  syncFullBtn() {
+    const btn = $("btn-full");
+    if (!btn) return;
+    const apiOn = !!this.fsElement();
+    const on = apiOn || this._immersive || this.isStandalone();
+    if (this.isStandalone()) {
+      btn.textContent = "Tela cheia";
+      btn.title = "Aberto pela Tela de Início — já está em tela cheia.";
+      return;
+    }
+    if (!this.canFullscreenApi()) {
+      btn.textContent = this._immersive ? "Tela preenchida" : "Tela cheia";
+      btn.title = this._immersive
+        ? "Preenche a área visível. No iPhone, a barra do Safari só some em Adicionar à Tela de Início."
+        : "Preencher a área visível. No iPhone não existe tela cheia clássica.";
+      return;
+    }
+    btn.textContent = on ? "Sair da tela cheia" : "Tela cheia";
+    btn.title = on ? "Sair da tela cheia" : "Tela cheia";
+  }
+
+  async toggleFull() {
+    const el = document.documentElement;
+    if (this.isStandalone()) {
+      this.syncFullBtn();
+      this.hideSafariChrome();
+      this.engine.resize();
+      return;
+    }
+    if (this.canFullscreenApi()) {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen || el.webkitRequestFullScreen;
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (this.fsElement() && exit) {
+        try { await exit.call(document); } catch (_) { /* ignore */ }
+        this._immersive = false;
+        document.documentElement.classList.remove("immersive");
+        this.syncFullBtn();
+        this.engine.resize();
+        return;
+      }
+      try {
+        await req.call(el, { navigationUI: "hide" });
+        this.syncFullBtn();
+        this.engine.resize();
+        return;
+      } catch (_) { /* iPhone/iPad recusa — cai no fallback */ }
+    }
+    this._immersive = !this._immersive;
+    document.documentElement.classList.toggle("immersive", this._immersive);
+    this.hideSafariChrome();
+    if (this._immersive) {
+      this.engine.toast = "No iPhone: Compartilhar → Adicionar à Tela de Início";
+      this.engine.toastT = 2.8;
+    }
+    this.syncFullBtn();
+    this.engine.resize();
   }
 
   preview(trackId) {
@@ -595,7 +686,7 @@ class App {
   loop(now) {
     const last = this._now || now;
     const rawDt = (now - last) / 1000;
-    const dt = Math.min(0.05, rawDt);
+    const dt = Math.min(this.phone ? 1 / 30 : 0.05, rawDt);
     this._now = now;
     const rotateBlock = this.isRotateBlocking();
     if (rotateBlock !== this._wasRotate) {
@@ -644,12 +735,14 @@ class App {
     } else {
       cd.classList.add("hidden");
     }
-    this.engine.renderMinimap($("minimap"));
+    if (!this.phone || this._frame % 2 === 0) this.engine.renderMinimap($("minimap"));
+    this._frame = (this._frame || 0) + 1;
   }
 }
 
 addEventListener("pointerdown", () => {
-  // libera o som no primeiro toque/clique
+  window.scrollTo(0, 0);
+  document.documentElement.scrollIntoView?.({ block: "start" });
 }, { once: true });
 
 new App();

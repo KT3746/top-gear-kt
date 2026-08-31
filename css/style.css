@@ -16,7 +16,9 @@
 html, body {
   width: 100%;
   height: 100%;
+  height: 100svh;
   height: 100dvh;
+  min-height: 100svh;
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
@@ -34,7 +36,9 @@ html, body {
 #app {
   width: 100%;
   height: 100%;
+  height: 100svh;
   height: 100dvh;
+  min-height: 100svh;
   overflow: hidden;
   touch-action: none;
 }
@@ -45,6 +49,16 @@ html, body {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+html.immersive,
+html.immersive body,
+html.immersive #app {
+  width: 100%;
+  height: 100svh;
+  height: 100dvh;
+  min-height: 100svh;
+  padding: 0;
 }
 
 .hidden { display: none !important; }
