@@ -280,7 +280,7 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   ctx.translate(x, y);
   ctx.scale(scale, scale * 1.22);
   ctx.rotate(st * 0.62);
-  ctx.transform(1, 0, st * 0.28, 1, 0, 0);
+  ctx.transform(1, 0, -st * 0.28, 1, 0, 0);
   ctx.translate(st * 18, Math.abs(st) * 6);
   const body = car.color;
   const accent = car.accent;
