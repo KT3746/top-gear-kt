@@ -810,33 +810,38 @@ export class GameEngine {
       const curveSign = Math.sign(look.curve || here.curve || 1);
       const inside = -curveSign * 0.42 * corner;
       let want = lerp(c.line, inside, corner * (0.45 + c.skill * 0.15));
+      const locked = (c.bumpLock || 0) > 0;
 
-      let blocked = false;
-      for (const o of this.cars) {
-        if (o === c) continue;
-        const dz = wrapDist(o.z, c.z, len);
-        if (dz > 50 && dz < 720 && Math.abs((o.x) - c.x) < 0.26) {
-          blocked = true;
-          const side = ((c.aiIndex || 0) % 2 === 0) ? 1 : -1;
-          const pass = clamp(c.line + side * 0.52, -0.82, 0.82);
-          if (c.laneT <= 0) {
-            c.line = pass;
-            c.laneT = 1.8 + c.skill * 0.7;
+      if (!locked) {
+        let blocked = false;
+        for (const o of this.cars) {
+          if (o === c) continue;
+          const dz = wrapDist(o.z, c.z, len);
+          if (dz > 50 && dz < 720 && Math.abs((o.x) - c.x) < 0.26) {
+            blocked = true;
+            const side = ((c.aiIndex || 0) % 2 === 0) ? 1 : -1;
+            const pass = clamp(c.line + side * 0.52, -0.82, 0.82);
+            if (c.laneT <= 0) {
+              c.line = pass;
+              c.laneT = 1.8 + c.skill * 0.7;
+            }
+            want = pass;
+            break;
           }
-          want = pass;
-          break;
         }
-      }
-      if (!blocked && c.laneT <= 0) {
-        const cycle = 2.5 + ((c.aiIndex || 0) % 3) * 0.45;
-        const idx = ((c.aiIndex || 0) + Math.floor(this.time / cycle)) % AI_LINES.length;
-        const next = AI_LINES[idx];
-        if (Math.abs(next - (c.line || 0)) > 0.1) {
-          c.line = next;
-          c.laneT = cycle * 0.85;
-        } else {
-          c.laneT = 0.35;
+        if (!blocked && c.laneT <= 0) {
+          const cycle = 2.5 + ((c.aiIndex || 0) % 3) * 0.45;
+          const idx = ((c.aiIndex || 0) + Math.floor(this.time / cycle)) % AI_LINES.length;
+          const next = AI_LINES[idx];
+          if (Math.abs(next - (c.line || 0)) > 0.1) {
+            c.line = next;
+            c.laneT = cycle * 0.85;
+          } else {
+            c.laneT = 0.35;
+          }
         }
+      } else {
+        want = c.line;
       }
 
       c.lane = lerp(c.lane ?? c.x, want, kLane);
@@ -894,18 +899,85 @@ export class GameEngine {
     this.camZ = wrapZ(this.camZ + clamp(zStep, -zCap, zCap), len);
   }
 
+  shiftAI(car, dx, dz) {
+    if (!car || car.human) return;
+    const len = this.track.length;
+    if (dx) {
+      car.x = clamp(car.x + dx, -1.62, 1.62);
+      car.line = car.x;
+      car.lane = car.x;
+      car.laneT = Math.max(car.laneT || 0, 1.2);
+      car._drawX = null;
+    }
+    if (dz) {
+      car.z = wrapZ(car.z + dz, len);
+      car._drawX = null;
+      car._drawY = null;
+    }
+  }
+
+  steerAside(car, fromX) {
+    if (!car || car.human) return;
+    const side = Math.sign(car.x - fromX) || (1 - 2 * ((car.aiIndex || 0) % 2));
+    const lane = clamp((fromX || 0) + side * 0.48, -0.82, 0.82);
+    car.line = lane;
+    car.lane = lane;
+    car.laneT = Math.max(car.laneT || 0, 1.35);
+  }
+
+  overlapping(a, b) {
+    if (!this.track || a === b) return false;
+    const len = this.track.length;
+    const adz = Math.abs(wrapDist(a.z, b.z, len));
+    const adx = Math.abs(a.x - b.x);
+    return adz < CAR_HALF_L * 2 && adx < CAR_HALF_W * 2;
+  }
+
+  unstickPair(a, b) {
+    const len = this.track.length;
+    const dz = wrapDist(a.z, b.z, len);
+    const adz = Math.abs(dz);
+    const dx = a.x - b.x;
+    const adx = Math.abs(dx);
+    const minZ = CAR_HALF_L * 2;
+    const minX = CAR_HALF_W * 2.08;
+    if (adz >= minZ || adx >= minX) return false;
+
+    const ahead = dz >= 0 ? a : b;
+    const behind = dz >= 0 ? b : a;
+    const needZ = minZ - adz + 10;
+    const needX = minX - adx + 0.03;
+    const side = Math.sign(behind.x - ahead.x) || (1 - 2 * ((behind.aiIndex || 0) % 2));
+    const rearEnd = adx < CAR_HALF_W * 1.7;
+
+    if (rearEnd && !ahead.human) {
+      this.shiftAI(ahead, 0, needZ);
+    } else if (rearEnd && ahead.human && !behind.human) {
+      this.shiftAI(behind, side * Math.max(needX, 0.36), 0);
+    } else if (!a.human && !b.human) {
+      this.shiftAI(a, Math.sign(dx || 1) * needX * 0.5, 0);
+      this.shiftAI(b, -Math.sign(dx || 1) * needX * 0.5, 0);
+      if (adz < minZ * 0.7 && !ahead.human) this.shiftAI(ahead, 0, needZ * 0.5);
+    } else {
+      const ai = a.human ? b : a;
+      const hum = a.human ? a : b;
+      const away = Math.sign(ai.x - hum.x) || side;
+      this.shiftAI(ai, away * Math.max(needX, 0.36), 0);
+    }
+    return true;
+  }
+
   queueSlow(car, factor) {
     if (car.human && (car.nitroBurst || 0) > 0) return;
     if ((car.bumpLock || 0) > 0) return;
     const aim = Math.max(0, car.speed * factor);
     if (car.speedAim == null || aim < car.speedAim) car.speedAim = aim;
-    car.bumpLock = 0.45;
+    car.bumpLock = 0.5;
   }
 
   queueNudge(car, dx, dz) {
     if (!car || car.human) return;
-    if (dx) car.nudgeX = dx;
-    if (dz) car.nudgeZ = dz;
+    this.shiftAI(car, dx, dz);
   }
 
   settleBumps(dt) {
@@ -949,29 +1021,26 @@ export class GameEngine {
         const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
         const ahead = aAhead ? a : b;
         const behind = aAhead ? b : a;
+        const firstHit = (a.bumpLock || 0) <= 0 && (b.bumpLock || 0) <= 0;
 
-        if (sameLane) {
-          if (behind.human) {
-            this.queueSlow(behind, hardHit ? 0.72 : 0.88);
-            this.queueSlow(ahead, 0.96);
+        this.unstickPair(a, b);
+
+        if (firstHit) {
+          if (sameLane) {
+            this.queueSlow(behind, hardHit ? 0.72 : 0.86);
+            this.queueSlow(ahead, hardHit ? 0.94 : 0.97);
+            const mover = ahead.human ? behind : ahead;
+            this.steerAside(mover, behind.human ? behind.x : ahead.x);
           } else {
-            this.queueSlow(behind, hardHit ? 0.72 : 0.9);
-            if (hardHit) this.queueSlow(ahead, 0.94);
-            const side = ((behind.aiIndex || 0) % 2 === 0) ? 1 : -1;
-            behind.line = clamp((ahead.line ?? ahead.x) + side * 0.5, -0.82, 0.82);
-            behind.laneT = Math.max(behind.laneT || 0, 1.4);
+            this.queueSlow(behind, hardHit ? 0.88 : 0.93);
+            this.queueSlow(ahead, 0.96);
+            if (!a.human) this.steerAside(a, b.x);
+            if (!b.human) this.steerAside(b, a.x);
           }
-        } else if (a.human || b.human) {
-          this.queueSlow(a.human ? a : b, hardHit ? 0.9 : 0.94);
-          this.queueSlow(a.human ? b : a, 0.9);
-        } else if (hardHit) {
-          this.queueSlow(a, 0.88);
-          this.queueSlow(b, 0.88);
-        }
-
-        if ((a.human || b.human) && hitSpeed > 120 && this.bumpCool <= 0) {
-          this.audio.bump();
-          this.bumpCool = 0.22;
+          if ((a.human || b.human) && hitSpeed > 80 && this.bumpCool <= 0) {
+            this.audio.bump();
+            this.bumpCool = 0.22;
+          }
         }
       }
     }

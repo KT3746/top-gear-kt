@@ -178,6 +178,41 @@ for (let i = 0; i < 200; i++) {
 check(cruiseUp >= 300 && cruiseUp <= 320, `engine+1 cruise around 309 (got ${cruiseUp})`);
 check(peakUp >= cruiseUp + 20, `nitro above engine+1 cruise ${cruiseUp} (peak ${peakUp})`);
 
+const e5 = makeEngine();
+e5.countdown = 0;
+e5.keys = { up: true, down: false, left: false, right: false, nitro: false };
+const prey = e5.cars.find((c) => !c.human);
+e5.player.x = 0;
+e5.playerX = 0;
+e5.player.speed = 6200;
+prey.x = 0;
+prey.line = 0;
+prey.lane = 0;
+prey.z = e5.player.z + 90;
+prey.speed = 4800;
+const speedBefore = e5.player.speed;
+const playerX0 = e5.playerX;
+let overlapAfter = 0;
+let minSpeed = speedBefore;
+const xRam = [];
+for (let i = 0; i < 45; i++) {
+  e5.update(dt, dt);
+  if (e5.overlapping(e5.player, prey)) overlapAfter++;
+  minSpeed = Math.min(minSpeed, e5.player.speed);
+  xRam.push(prey.x);
+}
+let ramFlips = 0;
+for (let i = 2; i < xRam.length; i++) {
+  const d0 = xRam[i - 1] - xRam[i - 2];
+  const d1 = xRam[i] - xRam[i - 1];
+  if (d0 * d1 < 0 && Math.abs(d0) > 0.02 && Math.abs(d1) > 0.02) ramFlips++;
+}
+check(overlapAfter === 0, `ram does not stay inside the other car (overlap frames ${overlapAfter})`);
+check(minSpeed < speedBefore - 200, `ram loses a little speed (${kmh(speedBefore)} → ${kmh(minSpeed)})`);
+check(Math.abs(e5.playerX - playerX0) < 0.08, `player body stays put on hit (dx ${Math.abs(e5.playerX - playerX0).toFixed(3)})`);
+check(ramFlips < 8, `unstick does not gelatin (sign flips ${ramFlips})`);
+check(Math.abs(prey.x) > 0.12, `rival steers aside after hit (x ${prey.x.toFixed(2)})`);
+
 if (fail.length) {
   console.log(fail.length + " gates failed");
   process.exit(1);
