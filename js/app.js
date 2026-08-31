@@ -84,6 +84,8 @@ class App {
     this.kb = { up: false, down: false, left: false, right: false, nitro: false };
     this.pad = { up: false, down: false, left: false, right: false, nitro: false };
     this.goLatch = false;
+    this._touches = [];
+    this._touchHold = { up: false, down: false, left: false, right: false, nitro: false };
     this.screen = "title";
     this.carId = this.save.carId;
     this.trackId = TRACKS[0].id;
@@ -114,8 +116,8 @@ class App {
 
   bind() {
     if (!this.phone) {
-      addEventListener("keydown", (e) => this.onKey(e, true));
-      addEventListener("keyup", (e) => this.onKey(e, false));
+      addEventListener("keydown", (e) => this.onKey(e, true), { capture: true });
+      addEventListener("keyup", (e) => this.onKey(e, false), { capture: true });
     }
     document.querySelectorAll("[data-action]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -135,9 +137,17 @@ class App {
     });
     if (this.phone) {
       this.bindPads();
+      const trackTouches = (e) => {
+        this._touches = Array.from(e.touches || []).map((t) => ({ x: t.clientX, y: t.clientY }));
+        if (this.screen === "race") this.applyTouchPads();
+      };
+      addEventListener("touchstart", trackTouches, { passive: false, capture: true });
       addEventListener("touchmove", (e) => {
+        trackTouches(e);
         if (this.screen === "race" || !e.target.closest?.(".screen")) e.preventDefault();
       }, { passive: false });
+      addEventListener("touchend", trackTouches, { passive: true, capture: true });
+      addEventListener("touchcancel", trackTouches, { passive: true, capture: true });
       addEventListener("gesturestart", (e) => e.preventDefault());
       addEventListener("orientationchange", () => {
         this.syncRotate();
@@ -158,7 +168,10 @@ class App {
     document.querySelectorAll("[data-hold]").forEach((el) => {
       const key = el.dataset.hold;
       const press = (e) => {
+        if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
         if (e.cancelable) e.preventDefault();
+        if (e.pointerType === "touch" || e.type === "touchstart") this._touchHold[key] = true;
+        try { if (e.pointerId != null) el.setPointerCapture(e.pointerId); } catch (_) {}
         this.pad[key] = true;
         if (key === "up") this.goLatch = true;
         if (key === "down") this.goLatch = false;
@@ -167,8 +180,12 @@ class App {
         queueMicrotask(() => this.audio.unlock());
       };
       const release = (e) => {
+        if (this._touchHold[key] && (e.pointerType === "mouse" || e.type === "mouseup" || (e.type === "pointerup" && e.pointerType !== "touch"))) {
+          return;
+        }
         if (e.type === "pointerup" && e.pointerType === "touch") return;
         if (e.cancelable) e.preventDefault();
+        if (e.type === "touchend" || e.type === "touchcancel") this._touchHold[key] = false;
         this.pad[key] = false;
         if (key === "up") this.goLatch = false;
         el.classList.remove("held");
@@ -176,27 +193,56 @@ class App {
       };
       el.addEventListener("pointerdown", press);
       el.addEventListener("touchstart", press, { passive: false });
-      el.addEventListener("mousedown", press);
       el.addEventListener("pointerup", release);
       el.addEventListener("touchend", release, { passive: false });
-      el.addEventListener("mouseup", release);
       el.addEventListener("pointercancel", (e) => {
         if (e.pointerType === "touch") {
           this.pad[key] = true;
+          this._touchHold[key] = true;
           el.classList.add("held");
           this.engine.setKeys(this.driveKeys());
           return;
         }
         release(e);
       });
-      el.addEventListener("touchcancel", press, { passive: false });
+      el.addEventListener("touchcancel", (e) => {
+        this._touchHold[key] = true;
+        this.pad[key] = true;
+        el.classList.add("held");
+        this.engine.setKeys(this.driveKeys());
+        if (e.cancelable) e.preventDefault();
+      }, { passive: false });
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
   }
 
+  applyTouchPads() {
+    if (!this.phone || this.screen !== "race") return;
+    const touches = this._touches || [];
+    if (!touches.length) return;
+    document.querySelectorAll("[data-hold]").forEach((el) => {
+      const key = el.dataset.hold;
+      const r = el.getBoundingClientRect();
+      const hit = touches.some((t) => t.x >= r.left && t.x <= r.right && t.y >= r.top && t.y <= r.bottom);
+      this.pad[key] = hit;
+      el.classList.toggle("held", hit);
+      if (hit && key === "up") this.goLatch = true;
+      if (hit && key === "down") this.goLatch = false;
+    });
+    this.engine.setKeys(this.driveKeys());
+  }
+
   driveKeys() {
-    if (!this.phone) return this.kb;
     const lights = this.goLatch && this.engine.countdown > 0;
+    if (!this.phone) {
+      return {
+        up: !!(this.kb.up || lights),
+        down: this.kb.down,
+        left: this.kb.left,
+        right: this.kb.right,
+        nitro: this.kb.nitro,
+      };
+    }
     return {
       up: !!(this.pad.up || lights),
       down: this.pad.down,
@@ -217,8 +263,15 @@ class App {
     const k = e.key;
     const code = e.code;
     if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(k)) e.preventDefault();
-    if (k === "ArrowUp" || k === "w" || k === "W" || code === "ArrowUp" || code === "KeyW") this.kb.up = down;
-    if (k === "ArrowDown" || k === "s" || k === "S" || code === "ArrowDown" || code === "KeyS") this.kb.down = down;
+    if (k === "ArrowUp" || k === "w" || k === "W" || code === "ArrowUp" || code === "KeyW") {
+      this.kb.up = down;
+      if (down) this.goLatch = true;
+      else if (this.engine.countdown <= 0) this.goLatch = false;
+    }
+    if (k === "ArrowDown" || k === "s" || k === "S" || code === "ArrowDown" || code === "KeyS") {
+      this.kb.down = down;
+      if (down) this.goLatch = false;
+    }
     if (k === "ArrowLeft" || k === "a" || k === "A" || code === "ArrowLeft" || code === "KeyA") this.kb.left = down;
     if (k === "ArrowRight" || k === "d" || k === "D" || code === "ArrowRight" || code === "KeyD") this.kb.right = down;
     if (k === " " || k === "Spacebar" || code === "Space") {
@@ -465,7 +518,6 @@ class App {
       this.show("race");
     }
     if (name === "restart") {
-      this.clearInput();
       this.engine.restart();
       this.show("race");
     }
@@ -671,12 +723,12 @@ class App {
 
   goRace(trackId) {
     this.trackId = trackId;
-    this.clearInput();
     this.engine.onFinish = (results) => this.finish(results);
     this.engine.startRace(trackId, this.carId, this.save.upgrades, 2);
     this.show("race");
     this.audio.go();
-    document.activeElement?.blur?.();
+    try { window.focus(); } catch (_) {}
+    try { $("view")?.focus?.(); } catch (_) {}
   }
 
   finish(results) {
@@ -778,6 +830,7 @@ class App {
       this.syncRotate();
       this._wasRotate = rotateBlock;
     }
+    if (this.phone && this.screen === "race") this.applyTouchPads();
     this.engine.setKeys(this.driveKeys());
     const liveMenu = this.screen === "title" || this.screen === "cars" || this.screen === "mode" || this.screen === "tracks" || this.screen === "howto" || this.screen === "shop" || this.screen === "standings" || this.screen === "results";
     if (!rotateBlock && (this.screen === "race" || liveMenu)) {

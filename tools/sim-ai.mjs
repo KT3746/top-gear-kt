@@ -70,8 +70,14 @@ for (let i = 0; i < 900; i++) {
   if (Math.abs(t - 0.5) < dt) speedAt05 = you;
   if (t >= 4 && t < 5.3) nitroPeak = Math.max(nitroPeak, you);
 
-  const leads = engine.cars.filter((c) => !c.human).map((c) => c.z - engine.player.z);
-  const nearby = leads.filter((d) => d > -2000 && d < 8000).length;
+  const len = engine.track.length;
+  const nearby = engine.cars.filter((c) => {
+    if (c.human) return false;
+    let d = c.z - engine.player.z;
+    if (d > len / 2) d -= len;
+    if (d < -len / 2) d += len;
+    return d > -4000 && d < 8000;
+  }).length;
   if (t > 6 && t < 25 && nearby >= 3) nearPack++;
   const aiK = engine.cars.filter((c) => !c.human).map((c) => kmh(c.speed));
   const med = aiK.slice().sort((a, b) => a - b)[3];
@@ -101,6 +107,39 @@ for (const c of e2.cars) {
 }
 const uniq = new Set(times);
 check(uniq.size >= 6, `finish times not glued (${[...uniq].join(", ")})`);
+
+const e3 = makeEngine();
+e3.keys = { up: false, down: false, left: false, right: false, nitro: false };
+let runaway = 0;
+for (let i = 0; i < 360; i++) {
+  e3.update(dt, dt);
+  const len = e3.track.length;
+  const far = e3.cars.filter((c) => {
+    if (c.human) return false;
+    let d = c.z - e3.player.z;
+    if (d > len / 2) d -= len;
+    if (d < -len / 2) d += len;
+    return Math.abs(d) > 12000;
+  }).length;
+  if (i * dt > 3 && far) runaway++;
+}
+check(runaway === 0, `AI stays put when player is stopped (runaway frames ${runaway})`);
+check(kmh(e3.player.speed) === 0, `no throttle stays 0 (got ${kmh(e3.player.speed)})`);
+
+const e4 = new GameEngine(canvas, audio);
+e4.setPhone(true);
+e4.startRace("praia", "fenix", { engine: 1, tires: 0, nitro: 0 }, 2);
+e4.keys = { up: true, down: false, left: false, right: false, nitro: false };
+const cruiseUp = kmh(e4.maxSpeed(e4.player));
+let peakUp = 0;
+for (let i = 0; i < 200; i++) {
+  const t = i * dt;
+  e4.keys.nitro = t >= 4 && t < 4.08;
+  e4.update(dt, dt);
+  if (t >= 4 && t < 5.4) peakUp = Math.max(peakUp, kmh(e4.player.speed));
+}
+check(cruiseUp >= 300 && cruiseUp <= 320, `engine+1 cruise around 309 (got ${cruiseUp})`);
+check(peakUp >= cruiseUp + 20, `nitro above engine+1 cruise ${cruiseUp} (peak ${peakUp})`);
 
 if (fail.length) {
   console.log(fail.length + " gates failed");

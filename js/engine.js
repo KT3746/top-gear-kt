@@ -259,8 +259,8 @@ function drawFuelPickup(ctx, destX, destY, pixelH) {
 }
 
 function fuelPixelSize(p1, h) {
-  const carH = 50 * p1.scale * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER * 1.22;
-  return clamp(carH * 0.4, 4, Math.min(carH * 0.65, h * 0.07));
+  const carH = 50 * carScreenScale(p1.scale, h) * 1.22;
+  return clamp(carH * 0.22, 3, carH * 0.34);
 }
 
 function shadeHex(hex, amt) {
@@ -521,7 +521,7 @@ export class GameEngine {
       const base = traffic[i % traffic.length] || CARS[(i + 1) % CARS.length];
       const line = LINES[i % LINES.length];
       const x = line;
-      const z = PLAYER_Z + 400 + i * 280 + (i % 3) * 55;
+      const z = PLAYER_Z + (i - 2) * 300 + (i % 3) * 40;
       this.cars.push({
         human: false,
         name: d.name,
@@ -575,7 +575,6 @@ export class GameEngine {
     this.player.nitro = 1;
     this.player.fuel = 1;
     this.player.laps = 0;
-    this.keys = { up: false, down: false, left: false, right: false, nitro: false };
     this.cars.forEach((c) => {
       c._lastZ = c.z;
       c._prevZ = c.z;
@@ -654,6 +653,7 @@ export class GameEngine {
     this.time += dt;
     this.lapTime += dt;
     this.collisions();
+    if ((this.player?.nitroBurst || 0) > 0) this.player.speedAim = null;
     this.settleBumps(dt);
     if ((this.player?.nitroBurst || 0) > 0) this.player.speedAim = null;
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
@@ -761,7 +761,10 @@ export class GameEngine {
     const len = this.track.length;
     const player = this.player;
     const playerMax = this.maxSpeed(player);
+    const playerSpeed = player.speed || 0;
     const playerProg = this.progress(player);
+    const boosting = (player.nitroBurst || 0) > 0;
+    const ref = boosting ? Math.min(playerSpeed, playerMax) : playerSpeed;
     for (const c of this.cars) {
       if (c.human || c.finished) continue;
       const here = this.findSeg(c.z);
@@ -769,25 +772,29 @@ export class GameEngine {
       const bend = Math.max(Math.abs(here.curve), Math.abs(look.curve));
       const onCorner = bend > 2.4;
       const hardCorner = bend > 4.2;
-      const paceMul = 0.90 + c.skill * 0.10 + ((c.aiIndex || 0) % 4) * 0.015 - 0.03;
-      let target = playerMax * paceMul;
-      if (hardCorner) target *= 0.88;
-      else if (onCorner) target *= 0.94;
+      const paceMul = 0.90 + c.skill * 0.05 + ((c.aiIndex || 0) % 5) * 0.022;
+      let target = ref * paceMul;
+      if (hardCorner) target *= 0.90;
+      else if (onCorner) target *= 0.95;
       const raceGap = this.progress(c) - playerProg;
-      if (raceGap > 6000) target = playerMax * 0.86;
-      else if (raceGap > 2800) target *= 0.92;
-      else if (raceGap < -5000) target = playerMax * 1.10;
-      else if (raceGap < -2000) target *= 1.05;
+      if (raceGap > 5000) target *= 0.82;
+      else if (raceGap > 2200) target *= 0.90;
+      else if (raceGap < -4000) target *= 1.08;
+      else if (raceGap < -1600) target *= 1.04;
       if (!onCorner && c.nitro > 0.25 && raceGap < 800 && c.nerve > 0.7) {
-        target *= 1.04;
+        target *= 1.03;
         c.nitro -= dt * 0.2;
       }
       c.nitro = Math.max(0, c.nitro);
-      target = clamp(target, playerMax * 0.84, playerMax * 1.03);
+      const cap = Math.max(1, ref * 1.08);
+      const lo = ref * 0.86;
+      const hi = Math.min(ref * 1.06, cap);
+      target = clamp(target, lo, Math.max(hi, lo));
 
       if (c.speed < target) c.speed += 3400 * c.spec.accel * dt;
       else c.speed -= (hardCorner ? 800 : 420) * dt;
-      c.speed = clamp(c.speed, 0, playerMax * 1.04);
+      if (c.speed > cap) c.speed = lerp(c.speed, cap, 1 - Math.exp(-4 * dt));
+      c.speed = clamp(c.speed, 0, cap);
 
       const preferred = c.line ?? 0;
       let lane = preferred;
@@ -862,6 +869,7 @@ export class GameEngine {
   }
 
   queueSlow(car, factor) {
+    if (car.human && (car.nitroBurst || 0) > 0) return;
     if ((car.bumpLock || 0) > 0) return;
     const aim = Math.max(0, car.speed * factor);
     if (car.speedAim == null || aim < car.speedAim) car.speedAim = aim;
@@ -881,7 +889,9 @@ export class GameEngine {
     const maxZ = 900 * dt;
     for (const c of this.cars) {
       if (c.bumpLock > 0) c.bumpLock -= dt;
-      if (c.speedAim != null) {
+      if (c.human && (c.nitroBurst || 0) > 0) {
+        c.speedAim = null;
+      } else if (c.speedAim != null) {
         if ((c.bumpLock || 0) <= 0) {
           c.speedAim = null;
         } else {
