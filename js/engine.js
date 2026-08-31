@@ -15,7 +15,7 @@ const CAR_HALF_L = 175;
 const NITRO_CHARGES = 3;
 const NITRO_BURST = 1.15;
 const AI_LINES = [-0.72, 0.68, -0.28, 0.40, -0.52, 0.14, 0.78];
-const AI_SLOTS = [-1200, 500, 1800, 3200, 4700, 6200, 7800];
+const AI_SLOTS = [-220, 900, 2100, 3500, 5100, 6800, 8500];
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -530,7 +530,7 @@ export class GameEngine {
         spec: applyUpgrades(base, { engine: 0, tires: 0, nitro: 0 }),
         car: base,
         x: line,
-        z: PLAYER_Z + slot,
+        z: wrapZ(PLAYER_Z + slot, this.track.length),
         speed: 0,
         nitro: 1,
         fuel: 1,
