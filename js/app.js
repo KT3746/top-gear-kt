@@ -104,10 +104,7 @@ class App {
     this.loop(performance.now());
     this.syncMute();
     addEventListener("blur", () => {
-      if (this.screen === "race") {
-        this.kb.up = this.kb.down = this.kb.left = this.kb.right = this.kb.nitro = false;
-        return;
-      }
+      if (this.screen === "race") return;
       this.clearInput();
     });
   }
