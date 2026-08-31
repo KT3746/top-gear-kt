@@ -5,16 +5,50 @@ import { getModo } from "./modo.js";
 
 const SAVE_KEY = "relampago-save";
 
-function loadSave() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
+function emptyUpgrades() {
+  return { engine: 0, tires: 0, nitro: 0 };
+}
+
+function emptyPoints() {
+  return Object.fromEntries(DRIVERS.map((d) => [d.name, 0]));
+}
+
+function normalizeCup(raw) {
+  if (!raw || raw.done) return null;
+  const points = { ...emptyPoints(), ...(raw.points || {}) };
+  const completed = Math.max(0, Math.min(TRACKS.length, Number(raw.completed) || 0));
+  if (completed <= 0 && raw.phase !== "racing" && raw.phase !== "standings" && !raw.active) {
+    return null;
+  }
   return {
-    money: 0,
-    upgrades: { engine: 0, tires: 0, nitro: 0 },
-    carId: "fenix",
+    completed,
+    index: Math.max(0, Math.min(TRACKS.length - 1, Number(raw.index) || 0)),
+    points,
+    lastResults: raw.lastResults || null,
+    done: false,
+    phase: raw.phase === "racing" ? "racing" : "standings",
   };
+}
+
+function loadSave() {
+  const fallback = {
+    money: 0,
+    upgrades: emptyUpgrades(),
+    carId: "fenix",
+    cup: null,
+  };
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (!raw) return fallback;
+    return {
+      money: Number(raw.money) || 0,
+      upgrades: { ...emptyUpgrades(), ...(raw.upgrades || {}) },
+      carId: raw.carId || "fenix",
+      cup: normalizeCup(raw.cup),
+    };
+  } catch {
+    return fallback;
+  }
 }
 
 function save(state) {
@@ -22,7 +56,15 @@ function save(state) {
     money: state.money,
     upgrades: state.upgrades,
     carId: state.carId,
+    cup: state.cup || null,
   }));
+}
+
+function countdownLabel(cd) {
+  if (cd > 2) return "3";
+  if (cd > 1) return "2";
+  if (cd > 0.28) return "1";
+  return "VAI";
 }
 
 function fmt(t) {
@@ -54,7 +96,8 @@ class App {
     this.renderTracks();
     this.renderShop();
     this.show("title");
-    this.engine.startAttract("praia");
+    this.preview("praia");
+    this.refreshCupButton();
     this.loop(performance.now());
     this.syncMute();
   }
@@ -160,6 +203,20 @@ class App {
     $("btn-mute").textContent = this.audio.muted ? "Som off" : "Som";
   }
 
+  preview(trackId) {
+    this.engine.startAttract(trackId || this.trackId || "praia", this.carId);
+  }
+
+  resetScroll(el) {
+    if (!el) return;
+    el.scrollTop = 0;
+    el.scrollLeft = 0;
+    requestAnimationFrame(() => {
+      el.scrollTop = 0;
+      el.scrollLeft = 0;
+    });
+  }
+
   show(name) {
     this.screen = name;
     document.body.classList.toggle("racing", name === "race");
@@ -167,6 +224,7 @@ class App {
     const hud = $("hud");
     const count = $("countdown");
     const pads = $("pads");
+    if (name === "mode") this.refreshCupButton();
     if (name === "race") {
       hud?.classList.remove("hidden");
       if (this.phone) pads?.classList.remove("hidden");
@@ -179,26 +237,43 @@ class App {
     pads?.classList.add("hidden");
     this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
     const el = $(`screen-${name}`);
-    if (el) el.classList.remove("hidden");
+    if (el) {
+      el.classList.remove("hidden");
+      this.resetScroll(el);
+    }
     this.syncRotate();
+  }
+
+  isRotateBlocking() {
+    return this.phone && this.screen === "race" && matchMedia("(orientation: portrait)").matches;
   }
 
   syncRotate() {
     const hint = $("rotate-hint");
-    if (!hint) return;
-    const portrait = matchMedia("(orientation: portrait)").matches;
-    hint.classList.toggle("hidden", !(this.phone && this.screen === "race" && portrait));
+    const block = this.isRotateBlocking();
+    document.body.classList.toggle("rotate-block", block);
+    if (hint) hint.classList.toggle("hidden", !block);
+    if (block) {
+      $("toast")?.classList.add("hidden");
+      $("countdown")?.classList.add("hidden");
+    }
   }
 
   act(name) {
-    if (name === "play") this.show("cars");
+    if (name === "play") {
+      this.show("cars");
+      this.preview("praia");
+    }
     if (name === "howto") this.show("howto");
     if (name === "back-title") {
       this.show("title");
-      this.engine.startAttract("praia");
+      this.preview("praia");
     }
     if (name === "cars-next") this.show("mode");
-    if (name === "back-cars") this.show("cars");
+    if (name === "back-cars") {
+      this.show("cars");
+      this.preview("praia");
+    }
     if (name === "back-mode") this.show("mode");
     if (name === "mode-cup") this.startCup();
     if (name === "mode-quick") this.show("tracks");
@@ -225,11 +300,7 @@ class App {
       this.engine.restart();
       this.show("race");
     }
-    if (name === "quit-race") {
-      this.cup = null;
-      this.show("mode");
-      this.engine.startAttract(this.trackId);
-    }
+    if (name === "quit-race") this.quitRace();
     if (name === "results-next") this.afterResults();
     if (name === "cup-next") this.nextCupRace();
     this.refreshMoney();
@@ -259,6 +330,7 @@ class App {
         this.save.carId = car.id;
         save(this.save);
         this.renderCars();
+        this.preview(this.trackId || "praia");
       });
       grid.appendChild(el);
     });
@@ -329,6 +401,44 @@ class App {
 
   refreshMoney() {
     $("money-hint").textContent = `Seu dinheiro: $${this.save.money}`;
+    this.refreshCupButton();
+  }
+
+  hasCupInProgress() {
+    const cup = this.save.cup;
+    return !!(cup && !cup.done && (cup.completed > 0 || cup.phase === "racing" || cup.phase === "standings"));
+  }
+
+  refreshCupButton() {
+    const btn = $("btn-cup") || document.querySelector('[data-action="mode-cup"]');
+    if (!btn) return;
+    btn.textContent = this.hasCupInProgress() ? "Continuar campeonato" : "Campeonato";
+  }
+
+  persistCup() {
+    this.save.cup = this.cup
+      ? {
+          completed: this.cup.completed,
+          index: this.cup.index,
+          points: { ...this.cup.points },
+          lastResults: this.cup.lastResults,
+          done: !!this.cup.done,
+          phase: this.cup.phase,
+          active: !this.cup.done,
+        }
+      : null;
+    save(this.save);
+  }
+
+  cloneCup(src) {
+    return {
+      completed: src.completed || 0,
+      index: src.index || 0,
+      points: { ...emptyPoints(), ...(src.points || {}) },
+      lastResults: src.lastResults || null,
+      done: !!src.done,
+      phase: src.phase === "racing" ? "racing" : "standings",
+    };
   }
 
   startQuick() {
@@ -339,12 +449,49 @@ class App {
 
   startCup() {
     this.mode = "cup";
+    const saved = this.save.cup;
+    if (saved && !saved.done) {
+      this.cup = this.cloneCup(saved);
+      if (this.cup.completed > 0 || this.cup.phase === "standings") {
+        this.cup.phase = "standings";
+        this.persistCup();
+        this.renderStandings();
+        this.show("standings");
+        const previewId = TRACKS[Math.min(this.cup.completed, TRACKS.length - 1)].id;
+        this.preview(previewId);
+        return;
+      }
+      this.cup.phase = "racing";
+      this.cup.index = 0;
+      this.persistCup();
+      this.goRace(TRACKS[0].id);
+      return;
+    }
     this.cup = {
+      completed: 0,
       index: 0,
-      points: Object.fromEntries(DRIVERS.map((d) => [d.name, 0])),
+      points: emptyPoints(),
       lastResults: null,
+      done: false,
+      phase: "racing",
     };
+    this.persistCup();
     this.goRace(TRACKS[0].id);
+  }
+
+  quitRace() {
+    if (this.cup) {
+      this.cup.phase = this.cup.completed > 0 ? "standings" : "racing";
+      this.persistCup();
+      if (this.cup.completed > 0) {
+        this.renderStandings();
+        this.show("standings");
+        this.preview(TRACKS[Math.min(this.cup.completed, TRACKS.length - 1)].id);
+        return;
+      }
+    }
+    this.show("mode");
+    this.preview(this.trackId);
   }
 
   goRace(trackId) {
@@ -360,12 +507,18 @@ class App {
     const you = results.find((r) => r.you);
     const prize = PRIZE[(you.place - 1)] || 80;
     this.save.money += prize;
-    save(this.save);
     if (this.cup) {
       results.forEach((r) => {
         this.cup.points[r.name] = (this.cup.points[r.name] || 0) + (POINTS[r.place - 1] || 0);
       });
       this.cup.lastResults = results;
+      this.cup.completed += 1;
+      this.cup.index = this.cup.completed - 1;
+      this.cup.phase = "standings";
+      this.cup.done = this.cup.completed >= TRACKS.length;
+      this.persistCup();
+    } else {
+      save(this.save);
     }
     $("results-title").textContent = you.place === 1 ? "Vitória" : "Chegada";
     $("results-sub").textContent = `${you.place}º lugar · +$${prize} · ${fmt(you.time)}`;
@@ -377,22 +530,23 @@ class App {
   }
 
   afterResults() {
-    if (this.mode === "cup") {
+    if (this.mode === "cup" && this.cup) {
       this.renderStandings();
       this.show("standings");
+      this.preview(this.trackId);
       return;
     }
     this.show("mode");
-    this.engine.startAttract(this.trackId);
+    this.preview(this.trackId);
   }
 
   renderStandings() {
-    const last = this.cup.index >= TRACKS.length - 1;
+    const last = !this.cup || this.cup.done || this.cup.completed >= TRACKS.length;
     const rows = Object.entries(this.cup.points).sort((a, b) => b[1] - a[1]);
     $("standings-title").textContent = last ? "Taça Relâmpago" : "Classificação";
     $("standings-sub").textContent = last
       ? `${rows[0][0]} levou o campeonato.`
-      : `Próxima pista: ${TRACKS[this.cup.index + 1].name}`;
+      : `Próxima pista: ${TRACKS[this.cup.completed].name}`;
     $("standings-table").innerHTML = `
       <tr><th>#</th><th>Piloto</th><th>Pontos</th></tr>
       ${rows.map((r, i) => `<tr class="${r[0] === "Você" ? "you" : ""}"><td>${i + 1}</td><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}
@@ -402,52 +556,64 @@ class App {
   }
 
   nextCupRace() {
-    if (this.cup.index >= TRACKS.length - 1) {
+    if (!this.cup || this.cup.done || this.cup.completed >= TRACKS.length) {
       this.cup = null;
+      this.save.cup = null;
+      save(this.save);
       this.show("mode");
-      this.engine.startAttract("praia");
+      this.preview("praia");
       return;
     }
-    this.cup.index += 1;
-    this.goRace(TRACKS[this.cup.index].id);
+    this.cup.index = this.cup.completed;
+    this.cup.phase = "racing";
+    this.persistCup();
+    this.goRace(TRACKS[this.cup.completed].id);
   }
 
   loop(now) {
     const last = this._now || now;
-    const dt = Math.min(0.05, (now - last) / 1000);
+    const rawDt = (now - last) / 1000;
+    const dt = Math.min(0.05, rawDt);
     this._now = now;
+    const rotateBlock = this.isRotateBlocking();
+    if (rotateBlock !== this._wasRotate) {
+      this.syncRotate();
+      this._wasRotate = rotateBlock;
+    }
     this.engine.setKeys(this.driveKeys());
-    if (this.screen === "race" || this.screen === "title" || this.screen === "cars" || this.screen === "mode" || this.screen === "tracks" || this.screen === "howto" || this.screen === "shop") {
-      this.engine.update(dt);
+    const liveMenu = this.screen === "title" || this.screen === "cars" || this.screen === "mode" || this.screen === "tracks" || this.screen === "howto" || this.screen === "shop" || this.screen === "standings" || this.screen === "results";
+    if (!rotateBlock && (this.screen === "race" || liveMenu)) {
+      this.engine.update(dt, rawDt);
     }
     this.engine.render();
-    if (this.screen === "race") this.paintHud();
+    if (this.screen === "race") this.paintHud(rotateBlock);
     const p = this.engine.player;
     const max = p ? this.engine.maxSpeed(p) : 1;
-    this.audio.setEngine((p?.speed || 0) / max, this.driveKeys().nitro && (p?.nitro || 0) > 0);
+    const boosting = !rotateBlock && this.driveKeys().nitro && (p?.nitro || 0) > 0;
+    this.audio.setEngine((p?.speed || 0) / max, boosting);
     requestAnimationFrame((t) => this.loop(t));
   }
 
-  paintHud() {
+  paintHud(rotateBlock = false) {
     const h = this.engine.hud();
     $("hud-speed").textContent = String(h.speed);
-    $("hud-speed").classList.toggle("boost", this.driveKeys().nitro && h.nitro > 0);
+    $("hud-speed").classList.toggle("boost", !rotateBlock && h.boosting);
     $("hud-pos").innerHTML = `${h.place}<span>/${h.field}</span>`;
     $("hud-lap").innerHTML = `${h.lap}<span>/${h.laps}</span>`;
     $("hud-time").textContent = fmt(h.time);
     $("hud-nitro").style.width = `${Math.round(h.nitro * 100)}%`;
     $("hud-fuel").style.width = `${Math.round(h.fuel * 100)}%`;
-    $("hud-nitro").parentElement.classList.toggle("hot", this.driveKeys().nitro && h.nitro > 0);
+    $("hud-nitro").parentElement.classList.toggle("hot", !rotateBlock && h.boosting);
     const toast = $("toast");
-    if (h.toast) {
+    const showToast = !rotateBlock && h.toast && (h.toast !== "NITRO" || h.boosting);
+    if (showToast) {
       toast.textContent = h.toast;
       toast.classList.remove("hidden");
     } else toast.classList.add("hidden");
     const cd = $("countdown");
-    if (h.countdown > 0) {
+    if (!rotateBlock && h.countdown > 0) {
       cd.classList.remove("hidden");
-      const n = Math.ceil(h.countdown);
-      const label = n <= 0 || h.countdown < 0.2 ? "VAI" : String(n);
+      const label = countdownLabel(h.countdown);
       if (cd.textContent !== label) {
         cd.textContent = label;
         if (label === "VAI") this.audio.go();

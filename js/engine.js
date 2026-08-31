@@ -360,7 +360,7 @@ export class GameEngine {
     this.lapTime = 0;
     this.bestLap = null;
     this.laps = 1;
-    this.countdown = 3.15;
+    this.countdown = 3;
     this.finished = false;
     this.results = null;
     this.mode = "race";
@@ -373,9 +373,9 @@ export class GameEngine {
     this.audio.startMusic("race");
   }
 
-  startAttract(trackId) {
+  startAttract(trackId, playerCarId) {
     this.loadTrack(trackId || "praia");
-    this.setupField("fenix", { engine: 0, tires: 0, nitro: 0 });
+    this.setupField(playerCarId || this.playerCarId || "fenix", { engine: 0, tires: 0, nitro: 0 });
     this.mode = "attract";
     this.countdown = 0;
     this.player.speed = 210;
@@ -394,7 +394,7 @@ export class GameEngine {
     return (car.spec.top * 22) * fuelCut;
   }
 
-  update(dt) {
+  update(dt, rawDt = dt) {
     if (!this.track || this.mode === "idle") return;
     if (this.mode === "attract") {
       this.autoDrive(dt);
@@ -405,7 +405,8 @@ export class GameEngine {
       return;
     }
     if (this.countdown > 0) {
-      this.countdown -= dt;
+      // Tempo de parede (não o dt da física, que é limitado) para o 3-2-1 não “grudar”.
+      this.countdown = Math.max(0, this.countdown - Math.min(0.25, rawDt > 0 ? rawDt : dt));
       this.simulateWorld(dt, true, true);
       return;
     }
@@ -453,11 +454,20 @@ export class GameEngine {
       p.nitro = Math.max(0, p.nitro - dt * 0.55 / p.spec.nitroTank);
       p.fuel = Math.max(0, p.fuel - dt * 0.05);
       this.fovKick = lerp(this.fovKick, 1, 6 * dt);
-      this.toast = "NITRO";
-      this.toastT = 0.7;
+      if (p.nitro > 0) {
+        this.toast = "NITRO";
+        this.toastT = 0.2;
+      } else if (this.toast === "NITRO") {
+        this.toast = "";
+        this.toastT = 0;
+      }
     } else {
       p.nitro = Math.min(1, p.nitro + dt * 0.08);
       this.fovKick = lerp(this.fovKick, 0, 4 * dt);
+      if (this.toast === "NITRO") {
+        this.toast = "";
+        this.toastT = 0;
+      }
     }
     p.fuel = Math.max(0, p.fuel - dt * (0.0035 + speedPct * 0.0028) / p.spec.fuel);
     if (off) {
@@ -624,14 +634,15 @@ export class GameEngine {
 
   endRace() {
     this.finished = true;
-    this.rank();
     this.cars.forEach((c) => {
       if (!c.finished) {
         c.finished = true;
-        c.finishTime = this.time + Math.abs(this.progress(this.player) - this.progress(c)) / 4000;
+        const behind = Math.max(0, this.progress(this.player) - this.progress(c));
+        c.finishTime = this.time + behind / 4000;
       }
     });
-    const board = [...this.cars].sort((a, b) => a.place - b.place);
+    const board = [...this.cars].sort((a, b) => a.finishTime - b.finishTime);
+    board.forEach((c, i) => { c.place = i + 1; });
     this.results = board.map((c) => ({
       name: c.name,
       you: !!c.human,
@@ -655,8 +666,9 @@ export class GameEngine {
       time: this.time,
       nitro: p?.nitro || 0,
       fuel: p?.fuel || 0,
-      toast: this.toastT > 0 ? this.toast : "",
+      toast: this.toastT > 0 && this.toast ? this.toast : "",
       countdown: this.countdown,
+      boosting: !!(this.keys.nitro && p?.nitro > 0 && p?.fuel > 0),
       finished: this.finished,
     };
   }

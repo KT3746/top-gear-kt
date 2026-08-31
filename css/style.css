@@ -53,14 +53,16 @@ html, body {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   background: linear-gradient(180deg, rgba(7, 11, 20, 0.28), rgba(7, 11, 20, 0.62));
   z-index: 5;
+  overflow-x: hidden;
   overflow-y: auto;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
+  overflow-anchor: none;
 }
 
 .screen.dim { background: rgba(4, 7, 14, 0.72); backdrop-filter: blur(6px); }
@@ -68,6 +70,8 @@ html, body {
 .screen-inner {
   width: min(720px, 100%);
   text-align: center;
+  margin-block: auto;
+  padding-bottom: 12px;
 }
 
 .screen-inner.wide { width: min(1080px, 100%); }
@@ -184,6 +188,19 @@ kbd {
 .grid-tracks { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .shop-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
+#screen-shop .shop-grid { margin-bottom: 8px; }
+#screen-shop .shop-card .menu {
+  margin-top: 12px;
+  position: relative;
+  z-index: 1;
+}
+#screen-shop > .screen-inner > .menu {
+  position: relative;
+  z-index: 2;
+  margin-top: 18px;
+  padding-bottom: 10px;
+}
+
 .pick, .shop-card {
   background: var(--panel);
   border: 1px solid rgba(255,255,255,0.08);
@@ -267,6 +284,11 @@ kbd {
   gap: 8px;
 }
 
+body.racing .top-tools {
+  right: calc(max(12px, env(safe-area-inset-right)) + 162px);
+  top: max(10px, env(safe-area-inset-top));
+}
+
 .top-tools button {
   min-width: 48px;
   min-height: 44px;
@@ -306,17 +328,30 @@ kbd {
 }
 
 .hud-card {
-  background: rgba(7, 11, 20, 0.62);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(4, 8, 16, 0.84);
+  border: 1px solid rgba(255,255,255,0.22);
   border-radius: 14px;
   padding: 8px 14px;
   min-width: 92px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
 }
 
 .hud-card.wide { min-width: 140px; }
-.hud-label { display: block; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-.hud-card strong { font-family: "Teko", Impact, sans-serif; font-size: 36px; line-height: 1; }
-.hud-card strong span { font-size: 18px; color: var(--muted); }
+.hud-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #e8edf5;
+  text-shadow: 0 1px 3px #000;
+}
+.hud-card strong {
+  font-family: "Teko", Impact, sans-serif;
+  font-size: 36px;
+  line-height: 1;
+  text-shadow: 0 2px 6px #000, 0 0 8px rgba(0,0,0,0.8);
+}
+.hud-card strong span { font-size: 18px; color: #c9d2e0; }
 
 .hud-mid {
   position: absolute;
@@ -344,7 +379,15 @@ kbd {
 
 .bars { width: min(340px, 48vw); }
 .bar { margin-top: 8px; }
-.bar span { font-size: 12px; color: var(--muted); }
+.bar span {
+  font-size: 12px;
+  color: #e8edf5;
+  text-shadow: 0 1px 3px #000;
+  display: inline-block;
+  background: rgba(4, 8, 16, 0.75);
+  padding: 1px 7px;
+  border-radius: 6px;
+}
 .bar-track {
   height: 12px;
   border-radius: 99px;
@@ -367,16 +410,30 @@ kbd {
 
 .bar-track.fuel i { background: linear-gradient(90deg, #ff5d6c, #f0b429); }
 
-.speedo { text-align: right; }
+.speedo {
+  text-align: right;
+  background: rgba(4, 8, 16, 0.82);
+  padding: 8px 14px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  overflow: visible;
+}
 .speedo strong {
   font-family: "Teko", Impact, sans-serif;
   font-size: 84px;
-  line-height: 0.8;
+  line-height: 0.85;
   display: block;
-  text-shadow: 0 6px 20px rgba(0,0,0,0.55);
+  text-shadow: 0 2px 6px #000, 0 6px 20px rgba(0,0,0,0.55);
+  overflow: visible;
 }
-.speedo strong.boost { color: #7cf6ff; text-shadow: 0 0 18px #49d6ff; }
-.speedo em { color: var(--muted); font-style: normal; letter-spacing: 0.18em; }
+.speedo strong.boost { color: #7cf6ff; text-shadow: 0 0 18px #49d6ff, 0 2px 6px #000; }
+.speedo em {
+  color: #d5dbe6;
+  font-style: normal;
+  letter-spacing: 0.18em;
+  text-shadow: 0 1px 3px #000;
+}
 
 .toast {
   position: absolute;
@@ -491,6 +548,9 @@ kbd {
   .hud-card strong { font-size: 28px; }
   .speedo strong { font-size: 56px; }
   #minimap { width: 110px; height: 110px; }
+  body.racing .top-tools {
+    right: calc(max(12px, env(safe-area-inset-right)) + 122px);
+  }
 }
 
 @media (max-width: 640px) {
@@ -499,28 +559,37 @@ kbd {
   h1 { font-size: clamp(56px, 18vw, 96px); }
 }
 
+body.modo-celular.racing .hud-top {
+  top: max(8px, env(safe-area-inset-top));
+  max-width: calc(100% - 210px);
+}
 body.modo-celular.racing .hud-bottom {
-  top: max(12px, env(safe-area-inset-top));
+  top: max(76px, calc(env(safe-area-inset-top) + 68px));
   bottom: auto;
   left: max(12px, env(safe-area-inset-left));
   right: auto;
-  width: min(280px, 46vw);
+  width: min(220px, 40vw);
   flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  align-items: stretch;
+  gap: 8px;
 }
 
 body.modo-celular.racing .hud-bottom .speedo {
   text-align: left;
+  width: fit-content;
+  max-width: 100%;
 }
 
-body.modo-celular.racing .speedo strong { font-size: 42px; }
+body.modo-celular.racing .speedo strong { font-size: 36px; line-height: 0.9; }
 body.modo-celular.racing .bars { width: 100%; }
 body.modo-celular.racing .hud-card { padding: 4px 10px; min-width: 72px; }
 body.modo-celular.racing .hud-card strong { font-size: 24px; }
 body.modo-celular.racing #minimap { width: 88px; height: 88px; }
 body.modo-celular.racing .hud-mid { top: max(10px, env(safe-area-inset-top)); }
-body.modo-celular.racing .top-tools { top: max(8px, env(safe-area-inset-top)); }
+body.modo-celular.racing .top-tools {
+  top: max(8px, env(safe-area-inset-top));
+  right: calc(max(10px, env(safe-area-inset-right)) + 98px);
+}
 
 @media (orientation: landscape) and (max-height: 480px) {
   .screen-inner { padding-top: 8px; }
@@ -534,6 +603,11 @@ body.modo-celular.racing .top-tools { top: max(8px, env(safe-area-inset-top)); }
 body.modo-pc .pads,
 body.modo-pc .rotate-hint,
 body.modo-pc .hud-pause { display: none !important; }
+
+body.rotate-block #toast,
+body.rotate-block #countdown {
+  display: none !important;
+}
 
 .hint a {
   color: var(--gold-2);
