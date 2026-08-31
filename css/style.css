@@ -614,6 +614,18 @@ body.rotate-block #countdown {
   font-weight: 800;
 }
 
+@media (min-width: 1200px) {
+  .hud-card strong { font-size: 40px; }
+  .hud-card { min-width: 110px; padding: 10px 16px; }
+  .speedo { padding: 10px 18px 12px; }
+  .speedo strong { font-size: 92px; }
+  #minimap { width: 168px; height: 168px; }
+  body.racing .top-tools {
+    right: calc(max(12px, env(safe-area-inset-right)) + 186px);
+  }
+  .hud-top { gap: 12px; }
+}
+
 .chooser {
   display: flex;
   align-items: center;
