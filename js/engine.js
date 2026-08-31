@@ -350,7 +350,7 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   ctx.fillRect(-12 + yaw * 1.15, -18, 24, 6);
 
   if (Math.abs(st) > 0.18) {
-    const side = st > 0 ? 46 + flare : -46 - flare;
+    const side = st > 0 ? -46 - flare : 46 + flare;
     ctx.fillStyle = shadeHex(body, st > 0 ? -18 : 12);
     ctx.beginPath();
     ctx.moveTo(side, 16);
