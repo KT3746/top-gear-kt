@@ -905,7 +905,7 @@ export class GameEngine {
     if (!car || car.human) return;
     const len = this.track.length;
     if (dx) {
-      car.x = clamp(car.x + dx, -1.62, 1.62);
+      car.x = clamp(car.x + dx, -0.92, 0.92);
       car.line = car.x;
       car.lane = car.x;
       car.laneT = Math.max(car.laneT || 0, 1.2);
@@ -927,12 +927,21 @@ export class GameEngine {
     car.laneT = Math.max(car.laneT || 0, 1.35);
   }
 
+  pairBox(a, b) {
+    const vsPlayer = !!(a && b && (a.human || b.human));
+    return {
+      minZ: vsPlayer ? CAR_SOLID_Z : CAR_HALF_L * 2,
+      minX: vsPlayer ? CAR_SOLID_X : CAR_HALF_W * 2,
+    };
+  }
+
   overlapping(a, b) {
     if (!this.track || a === b) return false;
     const len = this.track.length;
     const adz = Math.abs(wrapDist(a.z, b.z, len));
     const adx = Math.abs(a.x - b.x);
-    return adz < CAR_SOLID_Z && adx < CAR_SOLID_X;
+    const { minZ, minX } = this.pairBox(a, b);
+    return adz < minZ && adx < minX;
   }
 
   unstickPair(a, b) {
@@ -941,17 +950,23 @@ export class GameEngine {
     const adz = Math.abs(dz);
     const dx = a.x - b.x;
     const adx = Math.abs(dx);
-    const minZ = CAR_SOLID_Z;
-    const minX = CAR_SOLID_X;
+    const { minZ, minX } = this.pairBox(a, b);
     if (adz >= minZ || adx >= minX) return false;
 
     const ahead = dz >= 0 ? a : b;
     const behind = dz >= 0 ? b : a;
+    const vsPlayer = a.human || b.human;
     const needZ = minZ - adz + 10;
     const needX = minX - adx + 0.04;
     const side = Math.sign(behind.x - ahead.x) || (1 - 2 * ((behind.aiIndex || 0) % 2));
-    const shoveX = Math.max(needX, 0.58);
+    const shoveX = vsPlayer ? Math.max(needX, minX + 0.04) : Math.max(needX, 0.12);
     const rearEnd = adx < CAR_HALF_W * 1.7;
+    const aiLocked = !vsPlayer && ((a.bumpLock || 0) > 0 || (b.bumpLock || 0) > 0);
+
+    if (aiLocked) {
+      if (!ahead.human) this.shiftAI(ahead, 0, needZ);
+      return true;
+    }
 
     if (rearEnd && !ahead.human) {
       this.shiftAI(ahead, side * shoveX, needZ);
@@ -1005,7 +1020,6 @@ export class GameEngine {
 
   collisions() {
     const len = this.track.length;
-    const minZ = CAR_SOLID_Z;
     for (let i = 0; i < this.cars.length; i++) {
       for (let j = i + 1; j < this.cars.length; j++) {
         const a = this.cars[i];
@@ -1014,7 +1028,8 @@ export class GameEngine {
         const adz = Math.abs(dz);
         const dx = a.x - b.x;
         const adx = Math.abs(dx);
-        if (adz >= minZ || adx >= CAR_SOLID_X) continue;
+        const { minZ, minX } = this.pairBox(a, b);
+        if (adz >= minZ || adx >= minX) continue;
 
         const hitSpeed = Math.abs(a.speed - b.speed);
         const hardHit = hitSpeed > 480;
@@ -1045,6 +1060,12 @@ export class GameEngine {
           }
         }
       }
+    }
+    const p = this.player;
+    if (!p) return;
+    for (const c of this.cars) {
+      if (c.human) continue;
+      if (this.overlapping(p, c)) this.unstickPair(p, c);
     }
   }
 

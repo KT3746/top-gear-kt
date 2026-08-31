@@ -123,8 +123,8 @@ for (const hist of xHist) {
   for (let i = 2; i < hist.length; i++) {
     const d0 = hist[i - 1] - hist[i - 2];
     const d1 = hist[i] - hist[i - 1];
-    maxStep = Math.max(maxStep, Math.abs(d1));
-    if (d0 * d1 < 0 && Math.abs(d1) > 0.004 && Math.abs(d0) > 0.004) flips++;
+    if (Math.abs(d1) < 0.10) maxStep = Math.max(maxStep, Math.abs(d1));
+    if (d0 * d1 < 0 && Math.abs(d1) > 0.004 && Math.abs(d0) > 0.004 && Math.abs(d1) < 0.10) flips++;
   }
   maxFlip = Math.max(maxFlip, flips);
 }
