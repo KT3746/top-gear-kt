@@ -516,15 +516,12 @@ export class GameEngine {
     this.cars.push(this.player);
     const pool = CARS.filter((c) => c.id !== playerCarId);
     const traffic = pool.length ? pool : CARS;
-    const GRID_Z = 430;
     const LINES = [-0.70, 0.66, -0.22, 0.42, -0.54, 0.18, 0.78];
     DRIVERS.filter((d) => !d.human).forEach((d, i) => {
       const base = traffic[i % traffic.length] || CARS[(i + 1) % CARS.length];
-      const row = Math.floor(i / 2);
-      const slot = i % 2 === 0 ? -0.46 : 0.46;
-      const x = i === 6 ? 0.22 : slot;
-      const z = PLAYER_Z + GRID_Z * (row + 1) + (i % 2) * 12;
       const line = LINES[i % LINES.length];
+      const x = line;
+      const z = PLAYER_Z + 400 + i * 280 + (i % 3) * 55;
       this.cars.push({
         human: false,
         name: d.name,

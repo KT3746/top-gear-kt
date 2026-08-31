@@ -83,6 +83,7 @@ class App {
     this.phone = getModo() === "celular";
     this.kb = { up: false, down: false, left: false, right: false, nitro: false };
     this.pad = { up: false, down: false, left: false, right: false, nitro: false };
+    this.goLatch = false;
     this.screen = "title";
     this.carId = this.save.carId;
     this.trackId = TRACKS[0].id;
@@ -157,8 +158,20 @@ class App {
         el.classList.toggle("held", on);
         this.engine.setKeys(this.driveKeys());
       };
-      const add = (id) => { active.add(id); sync(); };
-      const drop = (id) => { active.delete(id); sync(); };
+      const add = (id) => {
+        active.add(id);
+        if (key === "up") this.goLatch = true;
+        if (key === "down") this.goLatch = false;
+        sync();
+      };
+      const drop = (id) => {
+        active.delete(id);
+        if (key === "up" && active.size === 0) {
+          const racing = this.engine.countdown <= 0 && (this.engine.time || 0) > 1.2;
+          if (racing) this.goLatch = false;
+        }
+        sync();
+      };
       const down = (e) => {
         if (e.cancelable) e.preventDefault();
         if (e.changedTouches) {
@@ -203,12 +216,22 @@ class App {
   }
 
   driveKeys() {
-    return this.phone ? this.pad : this.kb;
+    if (!this.phone) return this.kb;
+    const e = this.engine;
+    const latched = this.goLatch && (e.countdown > 0 || (e.time || 0) < 1.2);
+    return {
+      up: !!(this.pad.up || latched),
+      down: this.pad.down,
+      left: this.pad.left,
+      right: this.pad.right,
+      nitro: this.pad.nitro,
+    };
   }
 
   clearInput() {
     this.kb.up = this.kb.down = this.kb.left = this.kb.right = this.kb.nitro = false;
     this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
+    this.goLatch = false;
     document.querySelectorAll(".pad.held").forEach((el) => el.classList.remove("held"));
   }
 
