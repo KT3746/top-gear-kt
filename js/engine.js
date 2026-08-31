@@ -434,6 +434,7 @@ export class GameEngine {
     this.steer = 0;
     this.slip = 0;
     this.lean = 0;
+    this.sideShock = 0;
     this.fovKick = 0;
     this.time = 0;
     this.lapTime = 0;
@@ -585,6 +586,7 @@ export class GameEngine {
     this.steer = 0;
     this.slip = 0;
     this.lean = 0;
+    this.sideShock = 0;
     this.time = 0;
     this.lapTime = 0;
     this.bestLap = null;
@@ -743,7 +745,10 @@ export class GameEngine {
     const turn = (0.50 + grip * 0.40) * (0.34 + 0.66 * speedPct);
     this.playerX += this.steer * turn * dt;
     this.playerX += (-look.curve * (off ? 0.08 : 0.048) * speedPct) * dt;
-    if (!want) this.playerX = lerp(this.playerX, clamp(-look.curve * 0.035, -0.22, 0.22), (off ? 0.32 : 0.85) * dt);
+    if (!want && (this.sideShock || 0) <= 0) {
+      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.035, -0.22, 0.22), (off ? 0.32 : 0.85) * dt);
+    }
+    if (this.sideShock > 0) this.sideShock = Math.max(0, this.sideShock - dt);
     if (off) this.playerX -= Math.sign(this.playerX) * 0.55 * dt;
     this.slip = lerp(this.slip, this.steer * speedPct * (off ? 1.35 : 0.85), 3.6 * dt);
     const leanWant = want * (0.72 + 0.28 * speedPct) + this.steer * 0.45;
@@ -1122,11 +1127,12 @@ export class GameEngine {
         } else {
           this.hitPlayer(0.58);
           this.queueSlow(c, 0.68);
-          this.shovePlayer(away * 0.20);
-          this.shiftAI(c, -away * 0.34, 0);
+          this.shovePlayer(away * 0.32);
+          this.shiftAI(c, -away * 0.40, 0);
+          this.steer = clamp((this.steer || 0) + away * 0.70, -1, 1);
+          this.lean = clamp(away * 0.95, -1, 1);
+          this.sideShock = 1.15;
         }
-        this.steer = clamp((this.steer || 0) + away * 0.55, -1, 1);
-        this.lean = clamp(away * 0.9, -1, 1);
         p.steer = this.lean;
         if (this.bumpCool <= 0) {
           this.audio.bump();

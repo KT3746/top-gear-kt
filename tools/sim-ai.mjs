@@ -185,6 +185,11 @@ const prey = e5.cars.find((c) => !c.human);
 e5.player.x = 0;
 e5.playerX = 0;
 e5.player.speed = 6200;
+for (const c of e5.cars) {
+  if (c.human || c === prey) continue;
+  c.z = e5.player.z + 12000;
+  c.x = 0.8;
+}
 prey.x = 0;
 prey.line = 0;
 prey.lane = 0;
@@ -229,6 +234,11 @@ e6.playerX = 0;
 e6.player.x = 0;
 const cruise6 = e6.player.speed;
 const side = e6.cars.find((c) => !c.human);
+for (const c of e6.cars) {
+  if (c.human || c === side) continue;
+  c.z = e6.player.z + 12000;
+  c.x = 0.85;
+}
 side.z = e6.player.z + 900;
 side.x = 0.22;
 side.line = 0.22;
