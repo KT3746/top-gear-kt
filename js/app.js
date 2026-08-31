@@ -150,29 +150,54 @@ class App {
   bindPads() {
     document.querySelectorAll("[data-hold]").forEach((el) => {
       const key = el.dataset.hold;
-      const set = (on) => {
+      const active = new Set();
+      const sync = () => {
+        const on = active.size > 0;
         this.pad[key] = on;
         el.classList.toggle("held", on);
         this.engine.setKeys(this.driveKeys());
       };
+      const add = (id) => { active.add(id); sync(); };
+      const drop = (id) => { active.delete(id); sync(); };
       const down = (e) => {
         if (e.cancelable) e.preventDefault();
-        set(true);
-        if (e.pointerId != null) el.setPointerCapture?.(e.pointerId);
+        if (e.changedTouches) {
+          for (const t of e.changedTouches) add("t" + t.identifier);
+        } else if (e.pointerId != null && e.type.startsWith("pointer")) {
+          add("p" + e.pointerId);
+          try { el.setPointerCapture?.(e.pointerId); } catch (_) {}
+        } else {
+          add("mouse");
+        }
         queueMicrotask(() => this.audio.unlock());
       };
       const off = (e) => {
         if (e.cancelable) e.preventDefault();
-        set(false);
+        if (e.changedTouches) {
+          for (const t of e.changedTouches) drop("t" + t.identifier);
+        } else if (e.pointerId != null && e.type.startsWith("pointer")) {
+          drop("p" + e.pointerId);
+        } else {
+          drop("mouse");
+        }
+      };
+      const keep = (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (e.changedTouches) {
+          for (const t of e.changedTouches) add("t" + t.identifier);
+        } else if (e.pointerId != null) {
+          add("p" + e.pointerId);
+        }
       };
       el.addEventListener("pointerdown", down);
       el.addEventListener("touchstart", down, { passive: false });
       el.addEventListener("mousedown", down);
       el.addEventListener("pointerup", off);
-      el.addEventListener("pointercancel", off);
       el.addEventListener("touchend", off, { passive: false });
-      el.addEventListener("touchcancel", off, { passive: false });
       el.addEventListener("mouseup", off);
+      el.addEventListener("pointercancel", keep);
+      el.addEventListener("touchcancel", keep, { passive: false });
+      el.addEventListener("lostpointercapture", keep);
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
   }
