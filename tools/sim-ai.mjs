@@ -55,6 +55,8 @@ let nitroPeak = 0;
 const places = new Set();
 let nearPack = 0;
 let aiTooFast = 0;
+let gapSnap = null;
+const xHist = engine.cars.filter((c) => !c.human).map(() => []);
 
 for (let i = 0; i < 900; i++) {
   const t = i * dt;
@@ -83,6 +85,19 @@ for (let i = 0; i < 900; i++) {
   const med = aiK.slice().sort((a, b) => a - b)[3];
   if (t > 6 && t < 20 && med > you * 1.12) aiTooFast++;
 
+  if (t > 8 && t < 18) {
+    engine.cars.filter((c) => !c.human).forEach((c, idx) => xHist[idx].push(c.x));
+  }
+  if (i === 360) {
+    const gaps = engine.cars.filter((c) => !c.human).map((c) => {
+      let d = c.z - engine.player.z;
+      if (d > len / 2) d -= len;
+      if (d < -len / 2) d += len;
+      return d;
+    }).sort((a, b) => a - b);
+    gapSnap = gaps;
+  }
+
   if (i === 15 || i === 60 || i === 150 || i === 300 || i === 600) {
     console.log(`t=${t.toFixed(1)} YOU ${you} P${place}/8 nitroBurst=${engine.player.nitroBurst.toFixed(2)} nearby=${nearby} ai=${aiK.join(",")}`);
   }
@@ -93,6 +108,28 @@ check(nitroPeak >= cruise + 20, `nitro goes above cruise ${cruise} (peak ${nitro
 check(places.size >= 2, `HUD place changes (${[...places].join(",")})`);
 check(nearPack >= 40, `pack stays with player (${nearPack} frames with 3+ nearby)`);
 check(aiTooFast < 10, `AI not 12%+ faster than player (${aiTooFast} frames)`);
+
+const span = gapSnap[gapSnap.length - 1] - gapSnap[0];
+let minGap = Infinity;
+for (let i = 1; i < gapSnap.length; i++) minGap = Math.min(minGap, gapSnap[i] - gapSnap[i - 1]);
+check(span > 2800, `pack spreads along the road (span ${span.toFixed(0)})`);
+check(minGap > 180, `rivals not glued (min gap ${minGap.toFixed(0)})`);
+check(gapSnap[gapSnap.length - 1] < 9500, `lead AI still on camera (lead ${gapSnap[gapSnap.length - 1].toFixed(0)})`);
+
+let maxFlip = 0;
+let maxStep = 0;
+for (const hist of xHist) {
+  let flips = 0;
+  for (let i = 2; i < hist.length; i++) {
+    const d0 = hist[i - 1] - hist[i - 2];
+    const d1 = hist[i] - hist[i - 1];
+    maxStep = Math.max(maxStep, Math.abs(d1));
+    if (d0 * d1 < 0 && Math.abs(d1) > 0.004 && Math.abs(d0) > 0.004) flips++;
+  }
+  maxFlip = Math.max(maxFlip, flips);
+}
+check(maxStep > 0.002 && maxStep < 0.09, `lane changes without shake (max Δx ${maxStep.toFixed(4)})`);
+check(maxFlip < 40, `steer not vibrating (sign flips ${maxFlip})`);
 
 const e2 = makeEngine();
 e2.countdown = 0;
