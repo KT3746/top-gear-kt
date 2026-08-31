@@ -275,11 +275,13 @@ function shadeHex(hex, amt) {
 }
 
 function drawCar(ctx, x, y, scale, car, steer, nitro) {
+  const st = clamp(steer || 0, -1, 1);
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale, scale * 1.22);
-  ctx.rotate(steer * 0.40);
-  ctx.translate(steer * 11, Math.abs(steer) * 3);
+  ctx.rotate(st * 0.62);
+  ctx.transform(1, 0, st * 0.28, 1, 0, 0);
+  ctx.translate(st * 18, Math.abs(st) * 6);
   const body = car.color;
   const accent = car.accent;
   const type = car.silhouette;
@@ -287,67 +289,81 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   const lo = shadeHex(body, -42);
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
-  ctx.ellipse(0, 26, 58, 11, 0, 0, Math.PI * 2);
+  ctx.ellipse(st * 6, 26, 58, 11, st * 0.18, 0, Math.PI * 2);
   ctx.fill();
 
   const flare = type === "wide" ? 8 : type === "long" ? 2 : 0;
   const tail = type === "long" ? 6 : type === "box" ? -4 : 0;
   const spoiler = type === "gt" || type === "box";
+  const wdx = st * 12;
+  const yaw = st * 10;
 
   ctx.fillStyle = "#141418";
-  ctx.fillRect(-48 - flare + steer * 3, 10, 22, 16);
-  ctx.fillRect(26 + flare + steer * 3, 10, 22, 16);
+  ctx.fillRect(-48 - flare + wdx, 10, 22, 16);
+  ctx.fillRect(26 + flare + wdx, 10, 22, 16);
   ctx.fillStyle = accent;
-  ctx.fillRect(-46 - flare + steer * 3, 12, 8, 8);
-  ctx.fillRect(38 + flare + steer * 3, 12, 8, 8);
+  ctx.fillRect(-46 - flare + wdx, 12, 8, 8);
+  ctx.fillRect(38 + flare + wdx, 12, 8, 8);
 
   ctx.fillStyle = lo;
   ctx.beginPath();
-  ctx.moveTo(-50 - flare, 16);
-  ctx.lineTo(-42 - flare, -10 + tail);
-  ctx.lineTo(-14, type === "box" ? -28 : -22);
-  ctx.lineTo(14, type === "box" ? -28 : -22);
-  ctx.lineTo(42 + flare, -10 + tail);
-  ctx.lineTo(50 + flare, 16);
+  ctx.moveTo(-50 - flare + yaw * 0.15, 16);
+  ctx.lineTo(-42 - flare + yaw, -10 + tail);
+  ctx.lineTo(-14 + yaw * 1.15, type === "box" ? -28 : -22);
+  ctx.lineTo(14 + yaw * 1.15, type === "box" ? -28 : -22);
+  ctx.lineTo(42 + flare + yaw, -10 + tail);
+  ctx.lineTo(50 + flare + yaw * 0.15, 16);
   ctx.lineTo(36, 20);
   ctx.lineTo(-36, 20);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = hi;
   ctx.beginPath();
-  ctx.moveTo(-28, 4);
-  ctx.lineTo(-12, -20);
-  ctx.lineTo(12, -20);
-  ctx.lineTo(28, 4);
+  ctx.moveTo(-28 + yaw * 0.4, 4);
+  ctx.lineTo(-12 + yaw * 1.2, -20);
+  ctx.lineTo(12 + yaw * 1.2, -20);
+  ctx.lineTo(28 + yaw * 0.4, 4);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = "rgba(0,0,0,0.55)";
   ctx.lineWidth = 2.6;
   ctx.lineJoin = "round";
   ctx.beginPath();
-  ctx.moveTo(-50 - flare, 16);
-  ctx.lineTo(-42 - flare, -10 + tail);
-  ctx.lineTo(-14, type === "box" ? -28 : -22);
-  ctx.lineTo(14, type === "box" ? -28 : -22);
-  ctx.lineTo(42 + flare, -10 + tail);
-  ctx.lineTo(50 + flare, 16);
+  ctx.moveTo(-50 - flare + yaw * 0.15, 16);
+  ctx.lineTo(-42 - flare + yaw, -10 + tail);
+  ctx.lineTo(-14 + yaw * 1.15, type === "box" ? -28 : -22);
+  ctx.lineTo(14 + yaw * 1.15, type === "box" ? -28 : -22);
+  ctx.lineTo(42 + flare + yaw, -10 + tail);
+  ctx.lineTo(50 + flare + yaw * 0.15, 16);
   ctx.closePath();
   ctx.stroke();
 
   ctx.fillStyle = "rgba(12, 18, 28, 0.92)";
   ctx.beginPath();
-  ctx.moveTo(-16, -8);
-  ctx.lineTo(-8, -20);
-  ctx.lineTo(8, -20);
-  ctx.lineTo(16, -8);
+  ctx.moveTo(-16 + yaw, -8);
+  ctx.lineTo(-8 + yaw * 1.2, -20);
+  ctx.lineTo(8 + yaw * 1.2, -20);
+  ctx.lineTo(16 + yaw, -8);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = "rgba(180, 205, 230, 0.28)";
-  ctx.fillRect(-12, -18, 24, 6);
+  ctx.fillRect(-12 + yaw * 1.15, -18, 24, 6);
+
+  if (Math.abs(st) > 0.18) {
+    const side = st > 0 ? 46 + flare : -46 - flare;
+    ctx.fillStyle = shadeHex(body, st > 0 ? -18 : 12);
+    ctx.beginPath();
+    ctx.moveTo(side, 16);
+    ctx.lineTo(side + st * 8, -6 + tail);
+    ctx.lineTo(side * 0.72 + yaw, -10);
+    ctx.lineTo(side * 0.7, 18);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   ctx.fillStyle = "#f4f1ea";
-  ctx.fillRect(-38 - flare, -6, 7, 5);
-  ctx.fillRect(31 + flare, -6, 7, 5);
+  ctx.fillRect(-38 - flare + yaw, -6, 7, 5);
+  ctx.fillRect(31 + flare + yaw, -6, 7, 5);
   ctx.fillStyle = "#ff2a2a";
   ctx.fillRect(-36, 12, 14, 5);
   ctx.fillRect(22, 12, 14, 5);
@@ -1109,6 +1125,9 @@ export class GameEngine {
           this.shovePlayer(away * 0.20);
           this.shiftAI(c, -away * 0.34, 0);
         }
+        this.steer = clamp((this.steer || 0) + away * 0.55, -1, 1);
+        this.lean = clamp(away * 0.9, -1, 1);
+        p.steer = this.lean;
         if (this.bumpCool <= 0) {
           this.audio.bump();
           this.bumpCool = 0.2;
