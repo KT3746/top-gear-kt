@@ -12,8 +12,9 @@ const SPRITE_SCALE = 0.38;
 const CAR_SCALE_AT_PLAYER = 3.7;
 const CAR_HALF_W = 0.15;
 const CAR_HALF_L = 175;
-const CAR_SOLID_Z = CAR_HALF_L * 2.85;
-const CAR_SOLID_X = 0.60;
+const CAR_BODY_Z = 560;
+const CAR_BODY_X = 0.72;
+const CAR_SIGHT_Z = 1700;
 const NITRO_CHARGES = 3;
 const NITRO_BURST = 1.15;
 const AI_LINES = [-0.72, 0.68, -0.28, 0.40, -0.52, 0.14, 0.78];
@@ -664,9 +665,7 @@ export class GameEngine {
     this.time += dt;
     this.lapTime += dt;
     this.collisions();
-    if ((this.player?.nitroBurst || 0) > 0) this.player.speedAim = null;
     this.settleBumps(dt);
-    if ((this.player?.nitroBurst || 0) > 0) this.player.speedAim = null;
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
     this.followCamera(dt);
     this.pickups();
@@ -694,6 +693,9 @@ export class GameEngine {
 
     let max = this.maxSpeed(p);
     if (boost) max *= 1.32 + (p.spec.nitro - 1) * 0.3;
+    if ((p.bumpLock || 0) > 0 && p.speedAim != null) {
+      max = Math.min(max, p.speedAim);
+    }
     if (off) {
       const dirt = 0.36 + ((p.spec.offroad || 1) - 1) * 0.12;
       max *= dirt / (1 + offAmt * 1.15);
@@ -921,18 +923,57 @@ export class GameEngine {
   steerAside(car, fromX) {
     if (!car || car.human) return;
     const side = Math.sign(car.x - fromX) || (1 - 2 * ((car.aiIndex || 0) % 2));
-    const lane = clamp((fromX || 0) + side * 0.62, -0.82, 0.82);
+    const lane = clamp((fromX || 0) + side * 0.70, -0.82, 0.82);
     car.line = lane;
     car.lane = lane;
-    car.laneT = Math.max(car.laneT || 0, 1.35);
+    car.laneT = Math.max(car.laneT || 0, 1.4);
   }
 
-  pairBox(a, b) {
-    const vsPlayer = !!(a && b && (a.human || b.human));
-    return {
-      minZ: vsPlayer ? CAR_SOLID_Z : CAR_HALF_L * 2,
-      minX: vsPlayer ? CAR_SOLID_X : CAR_HALF_W * 2,
-    };
+  aiDepth(car) {
+    const len = this.track.length;
+    return wrapDist(car.z, this.player.z, len);
+  }
+
+  pixelClearX(car) {
+    const dz = this.aiDepth(car);
+    const cz = Math.max(90, PLAYER_Z + dz);
+    const sc = CAM_DEPTH / cz;
+    const w = this.canvas.width || 844;
+    const h = this.canvas.height || 390;
+    const pS = CAR_SCALE_AT_PLAYER * (h / 720);
+    const rS = clamp(sc * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER, 0.14, (h / 720) * 8);
+    const needPx = 50 * pS + 48 * rS + 16;
+    const worldPerPx = sc * ROAD * (w / 2);
+    if (worldPerPx < 1e-6) return 0.9;
+    return clamp(needPx / worldPerPx, 0.45, 1.15);
+  }
+
+  spriteHitsPlayer(car) {
+    if (!car || car.human || !this.player) return false;
+    const dz = this.aiDepth(car);
+    if (dz < 40 || dz > 1400) return false;
+    const adx = Math.abs(car.x - (this.playerX ?? this.player.x));
+    if (adx > 0.50) return false;
+    const cz = Math.max(90, PLAYER_Z + dz);
+    const sc = CAM_DEPTH / cz;
+    const w = this.canvas.width || 844;
+    const h = this.canvas.height || 390;
+    const pS = CAR_SCALE_AT_PLAYER * (h / 720);
+    const rS = clamp(sc * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER, 0.14, (h / 720) * 8);
+    const px = w / 2;
+    const py = h * 0.86;
+    const pHalf = 50 * pS;
+    const pTop = py - 42 * pS * 1.22;
+    const pBot = py + 22 * pS * 1.22;
+    const destX = car._drawX != null ? car._drawX : px + sc * (car.x - (this.playerX ?? 0)) * ROAD * (w / 2);
+    const destY = car._drawY != null ? car._drawY : h / 2 + sc * CAM_H * (h / 2);
+    if (destY < h * 0.68) return false;
+    const rHalf = 50 * rS;
+    const rTop = destY - 32 * rS * 1.22;
+    const rBot = destY + 22 * rS * 1.22;
+    const xHit = Math.abs(destX - px) < pHalf + rHalf * 0.7;
+    const yHit = rTop < pBot && rBot > pTop;
+    return xHit && yHit;
   }
 
   overlapping(a, b) {
@@ -940,8 +981,26 @@ export class GameEngine {
     const len = this.track.length;
     const adz = Math.abs(wrapDist(a.z, b.z, len));
     const adx = Math.abs(a.x - b.x);
-    const { minZ, minX } = this.pairBox(a, b);
-    return adz < minZ && adx < minX;
+    const vsPlayer = a.human || b.human;
+    if (vsPlayer) {
+      const ai = a.human ? b : a;
+      const dz = this.aiDepth(ai);
+      const adx = Math.abs(ai.x - (this.playerX ?? this.player.x));
+      if (dz > 0 && dz < CAR_BODY_Z && adx < 0.55) return true;
+      return this.spriteHitsPlayer(ai);
+    }
+    return adz < CAR_HALF_L * 2 && adx < CAR_HALF_W * 2;
+  }
+
+  unstickFromPlayer(ai) {
+    if (!ai || ai.human) return;
+    const dz = this.aiDepth(ai);
+    const adz = Math.abs(dz);
+    const adx = Math.abs(ai.x - this.playerX);
+    const side = Math.sign(ai.x - this.playerX) || (1 - 2 * ((ai.aiIndex || 0) % 2));
+    const needX = this.pixelClearX(ai);
+    if (adx < needX) this.shiftAI(ai, side * (needX - adx + 0.05), 0);
+    if (dz > 0 && adz < CAR_BODY_Z) this.shiftAI(ai, 0, CAR_BODY_Z - adz + 12);
   }
 
   unstickPair(a, b) {
@@ -950,47 +1009,47 @@ export class GameEngine {
     const adz = Math.abs(dz);
     const dx = a.x - b.x;
     const adx = Math.abs(dx);
-    const { minZ, minX } = this.pairBox(a, b);
-    if (adz >= minZ || adx >= minX) return false;
-
-    const ahead = dz >= 0 ? a : b;
-    const behind = dz >= 0 ? b : a;
     const vsPlayer = a.human || b.human;
+    if (vsPlayer) {
+      this.unstickFromPlayer(a.human ? b : a);
+      return true;
+    }
+    const minZ = CAR_HALF_L * 2;
+    const minX = CAR_HALF_W * 2;
+    if (adz >= minZ || adx >= minX) return false;
+    const ahead = dz >= 0 ? a : b;
     const needZ = minZ - adz + 10;
     const needX = minX - adx + 0.04;
-    const side = Math.sign(behind.x - ahead.x) || (1 - 2 * ((behind.aiIndex || 0) % 2));
-    const shoveX = vsPlayer ? Math.max(needX, minX + 0.04) : Math.max(needX, 0.12);
-    const rearEnd = adx < CAR_HALF_W * 1.7;
-    const aiLocked = !vsPlayer && ((a.bumpLock || 0) > 0 || (b.bumpLock || 0) > 0);
-
-    if (aiLocked) {
+    const shoveX = Math.max(needX, 0.12);
+    if ((a.bumpLock || 0) > 0 || (b.bumpLock || 0) > 0) {
       if (!ahead.human) this.shiftAI(ahead, 0, needZ);
       return true;
     }
-
-    if (rearEnd && !ahead.human) {
-      this.shiftAI(ahead, side * shoveX, needZ);
-    } else if (rearEnd && ahead.human && !behind.human) {
-      this.shiftAI(behind, side * shoveX, 0);
-    } else if (!a.human && !b.human) {
-      this.shiftAI(a, Math.sign(dx || 1) * shoveX * 0.5, 0);
-      this.shiftAI(b, -Math.sign(dx || 1) * shoveX * 0.5, 0);
-      if (adz < minZ * 0.7 && !ahead.human) this.shiftAI(ahead, 0, needZ * 0.5);
-    } else {
-      const ai = a.human ? b : a;
-      const hum = a.human ? a : b;
-      const away = Math.sign(ai.x - hum.x) || side;
-      this.shiftAI(ai, away * shoveX, 0);
-    }
+    this.shiftAI(a, Math.sign(dx || 1) * shoveX * 0.5, 0);
+    this.shiftAI(b, -Math.sign(dx || 1) * shoveX * 0.5, 0);
+    if (adz < minZ * 0.7 && !ahead.human) this.shiftAI(ahead, 0, needZ * 0.5);
     return true;
   }
 
+  hitPlayer(factor) {
+    const p = this.player;
+    if (!p) return;
+    if ((p.bumpLock || 0) > 0) return;
+    p.speed = Math.max(0, p.speed * factor);
+    p.speedAim = p.speed;
+    p.bumpLock = 0.85;
+  }
+
   queueSlow(car, factor) {
-    if (car.human && (car.nitroBurst || 0) > 0) return;
+    if (!car) return;
+    if (car.human) {
+      this.hitPlayer(factor);
+      return;
+    }
     if ((car.bumpLock || 0) > 0) return;
     const aim = Math.max(0, car.speed * factor);
     if (car.speedAim == null || aim < car.speedAim) car.speedAim = aim;
-    car.bumpLock = 0.5;
+    car.bumpLock = 0.55;
   }
 
   queueNudge(car, dx, dz) {
@@ -1002,72 +1061,55 @@ export class GameEngine {
     const k = 1 - Math.exp(-11 * dt);
     for (const c of this.cars) {
       if (c.bumpLock > 0) c.bumpLock -= dt;
-      if (c.human && (c.nitroBurst || 0) > 0) {
-        c.speedAim = null;
-      } else if (c.speedAim != null) {
-        if ((c.bumpLock || 0) <= 0) {
-          c.speedAim = null;
-        } else {
-          c.speed = lerp(c.speed, c.speedAim, k);
-        }
+      if (c.human) continue;
+      if (c.speedAim != null) {
+        if ((c.bumpLock || 0) <= 0) c.speedAim = null;
+        else c.speed = lerp(c.speed, c.speedAim, k);
       }
-      if (!c.human) {
-        c.nudgeX = 0;
-        c.nudgeZ = 0;
-      }
+      c.nudgeX = 0;
+      c.nudgeZ = 0;
     }
   }
 
   collisions() {
+    if (!this.player || !this.track) return;
     const len = this.track.length;
+    const p = this.player;
+    for (const c of this.cars) {
+      if (c.human) continue;
+      if (!this.overlapping(p, c)) continue;
+      const dz = wrapDist(c.z, p.z, len);
+      const adx = Math.abs(c.x - p.x);
+      const firstHit = (p.bumpLock || 0) <= 0;
+      if (firstHit) {
+        const rear = Math.abs(dz) < CAR_BODY_Z && adx < CAR_BODY_X;
+        this.hitPlayer(rear ? 0.68 : 0.72);
+        this.queueSlow(c, 0.88);
+        if (this.bumpCool <= 0) {
+          this.audio.bump();
+          this.bumpCool = 0.2;
+        }
+      }
+      this.unstickFromPlayer(c);
+    }
     for (let i = 0; i < this.cars.length; i++) {
       for (let j = i + 1; j < this.cars.length; j++) {
         const a = this.cars[i];
         const b = this.cars[j];
-        const dz = wrapDist(a.z, b.z, len);
-        const adz = Math.abs(dz);
-        const dx = a.x - b.x;
-        const adx = Math.abs(dx);
-        const { minZ, minX } = this.pairBox(a, b);
-        if (adz >= minZ || adx >= minX) continue;
-
-        const hitSpeed = Math.abs(a.speed - b.speed);
-        const hardHit = hitSpeed > 480;
-        const sameLane = adx < CAR_HALF_W * 1.55;
-        const prevDz = wrapDist(a._prevZ ?? a.z, b._prevZ ?? b.z, len);
-        const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
-        const ahead = aAhead ? a : b;
-        const behind = aAhead ? b : a;
+        if (a.human || b.human) continue;
+        const adz = Math.abs(wrapDist(a.z, b.z, len));
+        const adx = Math.abs(a.x - b.x);
+        if (adz >= CAR_HALF_L * 2 || adx >= CAR_HALF_W * 2) continue;
         const firstHit = (a.bumpLock || 0) <= 0 && (b.bumpLock || 0) <= 0;
-
         this.unstickPair(a, b);
-
         if (firstHit) {
-          if (sameLane) {
-            this.queueSlow(behind, hardHit ? 0.72 : 0.86);
-            this.queueSlow(ahead, hardHit ? 0.94 : 0.97);
-            const mover = ahead.human ? behind : ahead;
-            this.steerAside(mover, behind.human ? behind.x : ahead.x);
-          } else {
-            this.queueSlow(behind, hardHit ? 0.88 : 0.93);
-            this.queueSlow(ahead, 0.96);
-            if (!a.human) this.steerAside(a, b.x);
-            if (!b.human) this.steerAside(b, a.x);
-          }
-          if ((a.human || b.human) && hitSpeed > 80 && this.bumpCool <= 0) {
-            this.audio.bump();
-            this.bumpCool = 0.22;
-          }
+          this.queueSlow(a, 0.94);
+          this.queueSlow(b, 0.94);
         }
       }
     }
-    const p = this.player;
-    if (!p) return;
-    for (const c of this.cars) {
-      if (c.human) continue;
-      if (this.overlapping(p, c)) this.unstickPair(p, c);
-    }
   }
+
 
   pickups() {
     const len = this.track.length;
@@ -1447,9 +1489,6 @@ export class GameEngine {
     }
     sprites.sort((a, b) => b.z - a.z);
     const you = sprites.find((s) => s.human);
-    const pHalf = you ? 52 * you.s : 50 * CAR_SCALE_AT_PLAYER * (h / 720);
-    const pTop = you ? you.destY - 78 * you.s : h * 0.5;
-    const pBot = you ? you.destY + 28 * you.s : h;
     const drawOne = (s) => {
       const nitro = s.human && this.mode === "race" && s.c.nitroBurst > 0;
       const st = s.human ? 0 : clamp(s.c.steer || 0, -0.28, 0.28);
@@ -1458,12 +1497,6 @@ export class GameEngine {
     for (const s of sprites) {
       if (s.human) continue;
       if (s.destY > s.clip + 24) continue;
-      if (you) {
-        const rHalf = 52 * s.s;
-        const samePixels = Math.abs(s.destX - you.destX) < pHalf + rHalf * 0.45
-          && s.destY > pTop && s.destY < pBot + 40;
-        if (samePixels) continue;
-      }
       drawOne(s);
     }
     if (you) drawOne(you);

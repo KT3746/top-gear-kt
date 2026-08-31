@@ -213,6 +213,45 @@ check(Math.abs(e5.playerX - playerX0) < 0.08, `player body stays put on hit (dx 
 check(ramFlips < 8, `unstick does not gelatin (sign flips ${ramFlips})`);
 check(Math.abs(prey.x) > 0.40, `rival steers aside after hit (x ${prey.x.toFixed(2)})`);
 
+const e6 = new GameEngine(canvas, audio);
+e6.setPhone(true);
+e6.startRace("praia", "fenix", { engine: 1, tires: 0, nitro: 0 }, 2);
+e6.countdown = 0;
+e6.keys = { up: true, down: false, left: false, right: false, nitro: false };
+for (let i = 0; i < 90; i++) e6.update(dt, dt);
+const cruise6 = e6.player.speed;
+const side = e6.cars.find((c) => !c.human);
+side.z = e6.player.z + 900;
+side.x = 0.22;
+side.line = 0.22;
+side.lane = 0.22;
+side.speed = cruise6;
+e6.playerX = 0.22;
+e6.player.x = 0.22;
+const sideBefore = e6.player.speed;
+let sideHits = 0;
+let sideMin = sideBefore;
+const sideX = [];
+for (let i = 0; i < 40; i++) {
+  e6.playerX = 0.22;
+  e6.player.x = 0.22;
+  e6.update(dt, dt);
+  if (e6.overlapping(e6.player, side) || (e6.player.bumpLock || 0) > 0) sideHits++;
+  sideMin = Math.min(sideMin, e6.player.speed);
+  sideX.push(side.x);
+}
+check(kmh(sideBefore) >= 300, `engine+1 cruise before side swipe (got ${kmh(sideBefore)})`);
+check(kmh(sideMin) <= kmh(sideBefore) - 40, `side swipe drops speed (${kmh(sideBefore)} → ${kmh(sideMin)})`);
+check(Math.abs(e6.playerX - 0.22) < 0.08, `player x stays put on side swipe`);
+check(Math.abs(side.x - 0.22) > 0.25, `side rival is pushed aside (x ${side.x.toFixed(2)})`);
+let sideFlips = 0;
+for (let i = 2; i < sideX.length; i++) {
+  const d0 = sideX[i - 1] - sideX[i - 2];
+  const d1 = sideX[i] - sideX[i - 1];
+  if (d0 * d1 < 0 && Math.abs(d0) > 0.02 && Math.abs(d1) > 0.02) sideFlips++;
+}
+check(sideFlips < 8, `side unstick does not gelatin (sign flips ${sideFlips})`);
+
 if (fail.length) {
   console.log(fail.length + " gates failed");
   process.exit(1);
