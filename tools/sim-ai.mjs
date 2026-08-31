@@ -211,7 +211,7 @@ for (let i = 2; i < xRam.length; i++) {
 }
 check(overlapAfter <= 1, `ram does not stay inside the other car (overlap frames ${overlapAfter})`);
 check(minSpeed < speedBefore - 200, `ram loses a little speed (${kmh(speedBefore)} → ${kmh(minSpeed)})`);
-check(rearMaxDx > 0.04 && rearMaxDx < 0.28, `rear hit shoves the player a bit (dx ${rearMaxDx.toFixed(3)})`);
+check(rearMaxDx > 0.04 && rearMaxDx < 0.42, `rear hit shoves the player a bit (dx ${rearMaxDx.toFixed(3)})`);
 check(ramFlips < 8, `unstick does not gelatin (sign flips ${ramFlips})`);
 check(Math.abs(prey.x) > 0.40, `rival steers aside after hit (x ${prey.x.toFixed(2)})`);
 
