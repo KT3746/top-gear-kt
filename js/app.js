@@ -135,13 +135,16 @@ class App {
       addEventListener("orientationchange", () => {
         this.syncRotate();
         this.hideSafariChrome();
-        this.engine.resize();
+        this.fillVisibleShell();
       });
       matchMedia("(orientation: portrait)").addEventListener?.("change", () => this.syncRotate());
     }
     addEventListener("fullscreenchange", () => this.syncFullBtn());
     addEventListener("webkitfullscreenchange", () => this.syncFullBtn());
+    visualViewport?.addEventListener("resize", () => this.fillVisibleShell());
+    visualViewport?.addEventListener("scroll", () => this.fillVisibleShell());
     this.syncFullBtn();
+    this.fillVisibleShell();
   }
 
   bindPads() {
@@ -245,8 +248,30 @@ class App {
     try {
       window.scrollTo(0, 0);
       document.documentElement.scrollIntoView?.({ block: "start" });
-      requestAnimationFrame(() => window.scrollTo(0, 0));
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 1);
+        window.scrollTo(0, 0);
+      });
     } catch (_) { /* Safari antigo */ }
+  }
+
+  fillVisibleShell() {
+    const app = $("app");
+    const vv = visualViewport;
+    if (app && this._immersive && vv) {
+      app.style.position = "fixed";
+      app.style.top = `${Math.max(0, Math.round(vv.offsetTop))}px`;
+      app.style.left = `${Math.max(0, Math.round(vv.offsetLeft))}px`;
+      app.style.width = `${Math.round(vv.width)}px`;
+      app.style.height = `${Math.round(vv.height)}px`;
+    } else if (app) {
+      app.style.position = "";
+      app.style.top = "";
+      app.style.left = "";
+      app.style.width = "";
+      app.style.height = "";
+    }
+    this.engine.resize();
   }
 
   syncFullBtn() {
@@ -263,7 +288,7 @@ class App {
       btn.textContent = this._immersive ? "Tela preenchida" : "Tela cheia";
       btn.title = this._immersive
         ? "Preenche a área visível. No iPhone, a barra do Safari só some em Adicionar à Tela de Início."
-        : "Preencher a área visível. No iPhone não existe tela cheia clássica.";
+        : "Preenche a área visível. No iPhone a barra do Safari não some por este botão.";
       return;
     }
     btn.textContent = on ? "Sair da tela cheia" : "Tela cheia";
@@ -275,7 +300,7 @@ class App {
     if (this.isStandalone()) {
       this.syncFullBtn();
       this.hideSafariChrome();
-      this.engine.resize();
+      this.fillVisibleShell();
       return;
     }
     if (this.canFullscreenApi()) {
@@ -285,26 +310,33 @@ class App {
         try { await exit.call(document); } catch (_) { /* ignore */ }
         this._immersive = false;
         document.documentElement.classList.remove("immersive");
+        document.body.classList.remove("immersive");
         this.syncFullBtn();
-        this.engine.resize();
+        this.fillVisibleShell();
         return;
       }
       try {
         await req.call(el, { navigationUI: "hide" });
+        this._immersive = true;
+        document.documentElement.classList.add("immersive");
+        document.body.classList.add("immersive");
         this.syncFullBtn();
-        this.engine.resize();
+        this.fillVisibleShell();
         return;
       } catch (_) { /* iPhone/iPad recusa — cai no fallback */ }
     }
     this._immersive = !this._immersive;
     document.documentElement.classList.toggle("immersive", this._immersive);
+    document.body.classList.toggle("immersive", this._immersive);
     this.hideSafariChrome();
     if (this._immersive) {
-      this.engine.toast = "No iPhone: Compartilhar → Adicionar à Tela de Início";
+      this.engine.toast = this.isIPhone()
+        ? "Tela preenchida. A barra do Safari só some em Adicionar à Tela de Início"
+        : "Tela preenchida";
       this.engine.toastT = 2.8;
     }
     this.syncFullBtn();
-    this.engine.resize();
+    this.fillVisibleShell();
   }
 
   preview(trackId) {
@@ -730,7 +762,7 @@ class App {
     if (this.screen === "race") this.paintHud(rotateBlock);
     const p = this.engine.player;
     const max = p ? this.engine.maxSpeed(p) : 1;
-    const boosting = !rotateBlock && this.driveKeys().nitro && (p?.nitro || 0) > 0;
+    const boosting = !rotateBlock && (p?.nitroBurst || 0) > 0;
     this.audio.setEngine((p?.speed || 0) / max, boosting);
     requestAnimationFrame((t) => this.loop(t));
   }
@@ -742,9 +774,11 @@ class App {
     $("hud-pos").innerHTML = `${h.place}<span>/${h.field}</span>`;
     $("hud-lap").innerHTML = `${h.lap}<span>/${h.laps}</span>`;
     $("hud-time").textContent = fmt(h.time);
-    $("hud-nitro").style.width = `${Math.round(h.nitro * 100)}%`;
+    $("hud-nitro-pips")?.querySelectorAll("i").forEach((el, i) => {
+      el.classList.toggle("on", i < (h.nitroCharges || 0));
+    });
+    $("hud-nitro-pips")?.classList.toggle("hot", !rotateBlock && h.boosting);
     $("hud-fuel").style.width = `${Math.round(h.fuel * 100)}%`;
-    $("hud-nitro").parentElement.classList.toggle("hot", !rotateBlock && h.boosting);
     const toast = $("toast");
     const showToast = !rotateBlock && h.toast && (h.toast !== "NITRO" || h.boosting);
     if (showToast) {

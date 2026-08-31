@@ -79,7 +79,7 @@ export const UPGRADES = {
   },
   nitro: {
     name: "Nitro",
-    blurb: "Cada rajada dura um pouco mais. Ainda são poucas por corrida.",
+    blurb: "Cada carga dura um pouco mais. Continua sendo 3 por corrida.",
     costs: [260, 720, 1350],
     max: 3,
   },
