@@ -1,4 +1,4 @@
-import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS } from "./data.js";
+import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js";
 import { AudioBus } from "./audio.js";
 import { GameEngine } from "./engine.js";
 import { getModo } from "./modo.js";
@@ -17,7 +17,7 @@ function normalizeCup(raw) {
   if (!raw || raw.done) return null;
   const points = { ...emptyPoints(), ...(raw.points || {}) };
   const completed = Math.max(0, Math.min(TRACKS.length, Number(raw.completed) || 0));
-  if (completed <= 0 && raw.phase !== "racing" && raw.phase !== "standings" && !raw.active) {
+  if (completed <= 0 && raw.phase !== "racing" && raw.phase !== "standings" && raw.phase !== "failed" && !raw.active) {
     return null;
   }
   return {
@@ -26,7 +26,7 @@ function normalizeCup(raw) {
     points,
     lastResults: raw.lastResults || null,
     done: false,
-    phase: raw.phase === "racing" ? "racing" : "standings",
+    phase: raw.phase === "racing" || raw.phase === "failed" ? raw.phase : "standings",
   };
 }
 
@@ -518,7 +518,7 @@ class App {
 
   hasCupInProgress() {
     const cup = this.save.cup;
-    return !!(cup && !cup.done && (cup.completed > 0 || cup.phase === "racing" || cup.phase === "standings"));
+    return !!(cup && !cup.done && (cup.completed > 0 || cup.phase === "racing" || cup.phase === "standings" || cup.phase === "failed"));
   }
 
   refreshCupButton() {
@@ -549,7 +549,7 @@ class App {
       points: { ...emptyPoints(), ...(src.points || {}) },
       lastResults: src.lastResults || null,
       done: !!src.done,
-      phase: src.phase === "racing" ? "racing" : "standings",
+      phase: src.phase === "racing" || src.phase === "failed" ? src.phase : "standings",
     };
   }
 
@@ -564,6 +564,12 @@ class App {
     const saved = this.save.cup;
     if (saved && !saved.done) {
       this.cup = this.cloneCup(saved);
+      if (this.cup.phase === "failed") {
+        this.cup.phase = "racing";
+        this.persistCup();
+        this.goRace(TRACKS[Math.min(this.cup.completed, TRACKS.length - 1)].id);
+        return;
+      }
       if (this.cup.completed > 0 || this.cup.phase === "standings") {
         this.cup.phase = "standings";
         this.persistCup();
@@ -620,11 +626,26 @@ class App {
     const you = results.find((r) => r.you);
     const prize = PRIZE[(you.place - 1)] || 80;
     this.save.money += prize;
+    const nextBtn = document.querySelector('[data-action="results-next"]');
+    const qualified = you.place <= QUALIFY;
     if (this.cup) {
+      this.cup.lastResults = results;
+      if (!qualified) {
+        this.cup.phase = "failed";
+        this.persistCup();
+        $("results-title").textContent = "Não se classificou";
+        $("results-sub").textContent = `Você chegou em ${you.place}º. Precisa do ${QUALIFY}º ou melhor para avançar. +$${prize}`;
+        $("results-table").innerHTML = `
+          <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Tempo</th></tr>
+          ${results.map((r) => `<tr class="${r.you ? "you" : ""}"><td>${r.place}</td><td>${r.name}</td><td>${r.car}</td><td>${fmt(r.time)}</td></tr>`).join("")}
+        `;
+        if (nextBtn) nextBtn.textContent = "Tentar de novo";
+        this.show("results");
+        return;
+      }
       results.forEach((r) => {
         this.cup.points[r.name] = (this.cup.points[r.name] || 0) + (POINTS[r.place - 1] || 0);
       });
-      this.cup.lastResults = results;
       this.cup.completed += 1;
       this.cup.index = this.cup.completed - 1;
       this.cup.phase = "standings";
@@ -639,11 +660,18 @@ class App {
       <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Tempo</th></tr>
       ${results.map((r) => `<tr class="${r.you ? "you" : ""}"><td>${r.place}</td><td>${r.name}</td><td>${r.car}</td><td>${fmt(r.time)}</td></tr>`).join("")}
     `;
+    if (nextBtn) nextBtn.textContent = "Continuar";
     this.show("results");
   }
 
   afterResults() {
     if (this.mode === "cup" && this.cup) {
+      if (this.cup.phase === "failed") {
+        this.cup.phase = "racing";
+        this.persistCup();
+        this.goRace(TRACKS[Math.min(this.cup.completed, TRACKS.length - 1)].id);
+        return;
+      }
       this.renderStandings();
       this.show("standings");
       this.preview(this.trackId);
