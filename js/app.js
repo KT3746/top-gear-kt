@@ -257,19 +257,20 @@ class App {
 
   fillVisibleShell() {
     const app = $("app");
-    const vv = visualViewport;
-    if (app && this._immersive && vv) {
+    if (app) {
       app.style.position = "fixed";
-      app.style.top = `${Math.max(0, Math.round(vv.offsetTop))}px`;
-      app.style.left = `${Math.max(0, Math.round(vv.offsetLeft))}px`;
-      app.style.width = `${Math.round(vv.width)}px`;
-      app.style.height = `${Math.round(vv.height)}px`;
-    } else if (app) {
-      app.style.position = "";
-      app.style.top = "";
-      app.style.left = "";
-      app.style.width = "";
-      app.style.height = "";
+      app.style.inset = "0";
+      app.style.top = "0";
+      app.style.left = "0";
+      app.style.right = "0";
+      app.style.bottom = "0";
+      app.style.width = "100%";
+      app.style.height = "100%";
+      app.style.height = "100svh";
+      app.style.height = "100dvh";
+      app.style.minHeight = "-webkit-fill-available";
+      app.style.padding = "0";
+      app.style.margin = "0";
     }
     this.engine.resize();
   }
@@ -278,26 +279,28 @@ class App {
     const btn = $("btn-full");
     if (!btn) return;
     const apiOn = !!this.fsElement();
-    const on = apiOn || this._immersive || this.isStandalone();
     if (this.isStandalone()) {
-      btn.textContent = "Tela cheia";
-      btn.title = "Aberto pela Tela de Início — já está em tela cheia.";
+      btn.textContent = "Tela preenchida";
+      btn.title = "Aberto pela Tela de Início — já preenche a área visível.";
       return;
     }
     if (!this.canFullscreenApi()) {
-      btn.textContent = this._immersive ? "Tela preenchida" : "Tela cheia";
+      btn.textContent = this._immersive ? "Tela preenchida" : "Preencher tela";
       btn.title = this._immersive
-        ? "Preenche a área visível. No iPhone, a barra do Safari só some em Adicionar à Tela de Início."
+        ? "Preenche a área visível. A barra do Safari não some por este botão."
         : "Preenche a área visível. No iPhone a barra do Safari não some por este botão.";
       return;
     }
-    btn.textContent = on ? "Sair da tela cheia" : "Tela cheia";
-    btn.title = on ? "Sair da tela cheia" : "Tela cheia";
+    btn.textContent = apiOn ? "Sair da tela cheia" : "Tela cheia";
+    btn.title = apiOn ? "Sair da tela cheia" : "Tela cheia";
   }
 
   async toggleFull() {
     const el = document.documentElement;
     if (this.isStandalone()) {
+      this._immersive = true;
+      document.documentElement.classList.add("immersive");
+      document.body.classList.add("immersive");
       this.syncFullBtn();
       this.hideSafariChrome();
       this.fillVisibleShell();
@@ -329,12 +332,6 @@ class App {
     document.documentElement.classList.toggle("immersive", this._immersive);
     document.body.classList.toggle("immersive", this._immersive);
     this.hideSafariChrome();
-    if (this._immersive) {
-      this.engine.toast = this.isIPhone()
-        ? "Tela preenchida. A barra do Safari só some em Adicionar à Tela de Início"
-        : "Tela preenchida";
-      this.engine.toastT = 2.8;
-    }
     this.syncFullBtn();
     this.fillVisibleShell();
   }

@@ -16,14 +16,18 @@
 html, body {
   width: 100%;
   height: 100%;
+  height: -webkit-fill-available;
   height: 100svh;
   height: 100dvh;
   min-height: 100svh;
+  min-height: 100dvh;
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
   position: fixed;
   inset: 0;
+  padding: 0;
+  margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: "Nunito", "Segoe UI", sans-serif;
@@ -36,11 +40,17 @@ html, body {
 #app {
   width: 100%;
   height: 100%;
+  height: -webkit-fill-available;
   height: 100svh;
   height: 100dvh;
   min-height: 100svh;
+  min-height: 100dvh;
   overflow: hidden;
   touch-action: none;
+  position: fixed;
+  inset: 0;
+  padding: 0;
+  margin: 0;
 }
 
 #view {
@@ -56,17 +66,16 @@ html.immersive body,
 html.immersive #app,
 body.immersive,
 body.immersive #app {
+  position: fixed;
+  inset: 0;
   width: 100%;
+  width: 100dvw;
   height: 100svh;
   height: 100dvh;
-  min-height: 100svh;
+  height: -webkit-fill-available;
+  min-height: 100dvh;
   padding: 0;
-}
-
-html.immersive #app,
-body.immersive #app {
-  outline: 3px solid var(--gold);
-  outline-offset: -3px;
+  margin: 0;
 }
 
 .hidden { display: none !important; }

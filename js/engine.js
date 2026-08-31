@@ -199,9 +199,9 @@ function drawFuelPickup(ctx, destX, destY, pixelH) {
   ctx.save();
   ctx.translate(destX, destY);
   ctx.scale(s, s);
-  ctx.fillStyle = "rgba(255, 236, 40, 0.22)";
+  ctx.fillStyle = "rgba(255, 236, 40, 0.18)";
   ctx.beginPath();
-  ctx.ellipse(0, -46, 40, 46, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -44, 26, 30, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "rgba(0,0,0,0.5)";
   ctx.beginPath();
@@ -260,10 +260,7 @@ function drawFuelPickup(ctx, destX, destY, pixelH) {
 
 function fuelPixelSize(p1, h) {
   const carH = 52 * p1.scale * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER * 1.22;
-  const playerH = 52 * CAR_SCALE_AT_PLAYER * (h / 720) * 1.22;
-  const minPx = Math.min(20, playerH * 0.32);
-  const maxPx = Math.min(playerH * 0.95, h * 0.125);
-  return clamp(carH, minPx, maxPx);
+  return clamp(carH, 6, h * 0.12);
 }
 
 function shadeHex(hex, amt) {
@@ -442,9 +439,12 @@ export class GameEngine {
   resize() {
     const box = this.canvas.parentElement || this.canvas;
     const vv = visualViewport;
-    const useVv = (this._ios || this._phone) && vv && vv.width > 1 && vv.height > 1;
-    const iw = Math.max(1, useVv ? vv.width : (box.clientWidth || vv?.width || innerWidth));
-    const ih = Math.max(1, useVv ? vv.height : (box.clientHeight || vv?.height || innerHeight));
+    let iw = Math.max(1, box.clientWidth || 0, innerWidth);
+    let ih = Math.max(1, box.clientHeight || 0, innerHeight);
+    if (vv && vv.width > 1 && vv.height > 1) {
+      iw = Math.max(iw, vv.width);
+      ih = Math.max(ih, vv.height);
+    }
     const dprCap = this._ios || this._phone ? 1.5 : 2;
     const dpr = Math.min(devicePixelRatio || 1, dprCap);
     const bw = Math.round(iw * dpr);
@@ -508,6 +508,9 @@ export class GameEngine {
       finishTime: 0,
       place: 1,
       steer: 0,
+      nudgeX: 0,
+      nudgeZ: 0,
+      speedAim: null,
     };
     this.cars.push(this.player);
     const pool = CARS.filter((c) => c.id !== playerCarId);
@@ -536,6 +539,9 @@ export class GameEngine {
         place: i + 2,
         steer: 0,
         lane: x,
+        nudgeX: 0,
+        nudgeZ: 0,
+        speedAim: null,
       });
     });
   }
@@ -565,7 +571,15 @@ export class GameEngine {
     this.player.fuel = 1;
     this.player.laps = 0;
     this.keys = { up: false, down: false, left: false, right: false, nitro: false };
-    this.cars.forEach((c) => { c._lastZ = c.z; c._prevZ = c.z; c.laps = 0; c.finished = false; });
+    this.cars.forEach((c) => {
+      c._lastZ = c.z;
+      c._prevZ = c.z;
+      c.laps = 0;
+      c.finished = false;
+      c.nudgeX = 0;
+      c.nudgeZ = 0;
+      c.speedAim = null;
+    });
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
     this.camZ = this.position;
     this.camX = this.playerX;
@@ -633,6 +647,7 @@ export class GameEngine {
     this.time += dt;
     this.lapTime += dt;
     this.collisions();
+    this.settleBumps(dt);
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
     this.followCamera(dt);
     this.pickups();
@@ -755,7 +770,8 @@ export class GameEngine {
       if (boost) {
         target *= 1.12;
         c.nitro -= dt * 0.32;
-      } else c.nitro = Math.min(1, c.nitro + dt * 0.035);
+      }
+      c.nitro = Math.max(0, c.nitro);
       if (c.speed < target) c.speed += 2900 * c.spec.accel * dt;
       else c.speed -= 1500 * dt;
       c.speed = clamp(c.speed, 0, this.maxSpeed(c) * 1.14);
@@ -829,75 +845,102 @@ export class GameEngine {
     this.camZ = wrapZ(this.camZ + clamp(zStep, -zCap, zCap), len);
   }
 
+  queueSlow(car, factor) {
+    const aim = Math.max(0, car.speed * factor);
+    if (car.speedAim == null || aim < car.speedAim) car.speedAim = aim;
+  }
+
+  queueNudge(car, dx, dz) {
+    if (!car || car.human) return;
+    if (dx) car.nudgeX = dx;
+    if (dz) car.nudgeZ = dz;
+  }
+
+  settleBumps(dt) {
+    const len = this.track.length;
+    const k = 1 - Math.exp(-11 * dt);
+    const maxX = 0.9 * dt;
+    const maxZ = 420 * dt;
+    for (const c of this.cars) {
+      if (c.speedAim != null) {
+        c.speed = lerp(c.speed, c.speedAim, k);
+        if (c.speed <= c.speedAim + 6) c.speedAim = null;
+      }
+      if (c.human) continue;
+      if (c.nudgeX) {
+        const step = clamp(c.nudgeX, -maxX, maxX);
+        c.x = clamp(c.x + step, -1.65, 1.65);
+        c.nudgeX -= step;
+        if (Math.abs(c.nudgeX) < 0.003) c.nudgeX = 0;
+      }
+      if (c.nudgeZ) {
+        const step = clamp(c.nudgeZ, -maxZ, maxZ);
+        c.z = wrapZ(c.z + step, len);
+        c.nudgeZ -= step;
+        if (Math.abs(c.nudgeZ) < 2) c.nudgeZ = 0;
+      }
+    }
+  }
+
   collisions() {
     const len = this.track.length;
     const halfW = CAR_HALF_W;
     const minZ = CAR_HALF_L * 2;
-    for (let pass = 0; pass < 4; pass++) {
-      for (let i = 0; i < this.cars.length; i++) {
-        for (let j = i + 1; j < this.cars.length; j++) {
-          const a = this.cars[i];
-          const b = this.cars[j];
-          const dz = wrapDist(a.z, b.z, len);
-          const adz = Math.abs(dz);
-          const dx = a.x - b.x;
-          const adx = Math.abs(dx);
-          if (adz >= minZ || adx >= halfW * 2) continue;
+    for (let i = 0; i < this.cars.length; i++) {
+      for (let j = i + 1; j < this.cars.length; j++) {
+        const a = this.cars[i];
+        const b = this.cars[j];
+        const dz = wrapDist(a.z, b.z, len);
+        const adz = Math.abs(dz);
+        const dx = a.x - b.x;
+        const adx = Math.abs(dx);
+        if (adz >= minZ || adx >= halfW * 2) continue;
 
-          const hitSpeed = Math.abs(a.speed - b.speed);
-          const sameLane = adx < halfW * 1.55;
-          const prevDz = wrapDist(a._prevZ ?? a.z, b._prevZ ?? b.z, len);
-          const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
-          const ahead = aAhead ? a : b;
-          const behind = aAhead ? b : a;
+        const hitSpeed = Math.abs(a.speed - b.speed);
+        const sameLane = adx < halfW * 1.55;
+        const prevDz = wrapDist(a._prevZ ?? a.z, b._prevZ ?? b.z, len);
+        const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
+        const ahead = aAhead ? a : b;
+        const behind = aAhead ? b : a;
 
-          if (sameLane) {
-            const dNow = wrapDist(ahead.z, behind.z, len);
-            const push = minZ - dNow;
-            if (behind.human) {
-              if (pass === 0) {
-                behind.speed = Math.min(behind.speed, Math.max(0, ahead.speed * 0.5));
-                ahead.speed *= 0.96;
-              }
-              if (push > 0 && !ahead.human) ahead.z = wrapZ(ahead.z + push, len);
-            } else {
-              if (push > 0) behind.z = wrapZ(behind.z - push, len);
-              const side = Math.sign(behind.x - ahead.x) || 1;
-              behind.x = clamp(ahead.x + side * Math.max(halfW * 1.65, adx), -1.65, 1.65);
-              if (pass === 0) {
-                behind.speed = Math.min(behind.speed, Math.max(0, ahead.speed * 0.42));
-                ahead.speed *= 0.97;
-              }
-            }
+        if (sameLane) {
+          const dNow = wrapDist(ahead.z, behind.z, len);
+          const push = minZ - dNow;
+          if (behind.human) {
+            this.queueSlow(behind, 0.72);
+            this.queueSlow(ahead, 0.96);
+            if (push > 0) this.queueNudge(ahead, 0, push);
           } else {
-            const overlapX = halfW * 2 - adx;
-            const side = Math.sign(dx) || 1;
-            if (a.human && !b.human) {
-              b.x = clamp(b.x - side * Math.max(overlapX, 0.08), -1.65, 1.65);
-              if (pass === 0) {
-                a.speed *= 0.86;
-                b.speed *= 0.8;
-              }
-            } else if (b.human && !a.human) {
-              a.x = clamp(a.x + side * Math.max(overlapX, 0.08), -1.65, 1.65);
-              if (pass === 0) {
-                a.speed *= 0.8;
-                b.speed *= 0.86;
-              }
-            } else {
-              a.x = clamp(a.x + side * Math.max(overlapX * 0.5, 0.06), -1.65, 1.65);
-              b.x = clamp(b.x - side * Math.max(overlapX * 0.5, 0.06), -1.65, 1.65);
-              if (pass === 0) {
-                a.speed *= 0.82;
-                b.speed *= 0.82;
-              }
-            }
+            if (push > 0) this.queueNudge(behind, 0, -push);
+            const side = Math.sign(behind.x - ahead.x) || 1;
+            const wantX = clamp(ahead.x + side * Math.max(halfW * 1.65, adx), -1.65, 1.65);
+            this.queueNudge(behind, wantX - behind.x, 0);
+            this.queueSlow(behind, 0.72);
+            this.queueSlow(ahead, 0.94);
           }
+        } else {
+          const overlapX = halfW * 2 - adx;
+          const side = Math.sign(dx) || 1;
+          const split = Math.max(overlapX * 0.5, 0.05);
+          if (a.human && !b.human) {
+            this.queueNudge(b, -side * Math.max(overlapX, 0.08), 0);
+            this.queueSlow(a, 0.9);
+            this.queueSlow(b, 0.86);
+          } else if (b.human && !a.human) {
+            this.queueNudge(a, side * Math.max(overlapX, 0.08), 0);
+            this.queueSlow(a, 0.86);
+            this.queueSlow(b, 0.9);
+          } else {
+            this.queueNudge(a, side * split, 0);
+            this.queueNudge(b, -side * split, 0);
+            this.queueSlow(a, 0.88);
+            this.queueSlow(b, 0.88);
+          }
+        }
 
-          if ((a.human || b.human) && hitSpeed > 120 && this.bumpCool <= 0) {
-            this.audio.bump();
-            this.bumpCool = 0.22;
-          }
+        if ((a.human || b.human) && hitSpeed > 120 && this.bumpCool <= 0) {
+          this.audio.bump();
+          this.bumpCool = 0.22;
         }
       }
     }
