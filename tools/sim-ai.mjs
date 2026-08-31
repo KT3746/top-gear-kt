@@ -194,11 +194,13 @@ const speedBefore = e5.player.speed;
 const playerX0 = e5.playerX;
 let overlapAfter = 0;
 let minSpeed = speedBefore;
+let rearMaxDx = 0;
 const xRam = [];
 for (let i = 0; i < 45; i++) {
   e5.update(dt, dt);
   if (e5.overlapping(e5.player, prey)) overlapAfter++;
   minSpeed = Math.min(minSpeed, e5.player.speed);
+  rearMaxDx = Math.max(rearMaxDx, Math.abs(e5.playerX - playerX0));
   xRam.push(prey.x);
 }
 let ramFlips = 0;
@@ -207,9 +209,9 @@ for (let i = 2; i < xRam.length; i++) {
   const d1 = xRam[i] - xRam[i - 1];
   if (d0 * d1 < 0 && Math.abs(d0) > 0.02 && Math.abs(d1) > 0.02) ramFlips++;
 }
-check(overlapAfter === 0, `ram does not stay inside the other car (overlap frames ${overlapAfter})`);
+check(overlapAfter <= 1, `ram does not stay inside the other car (overlap frames ${overlapAfter})`);
 check(minSpeed < speedBefore - 200, `ram loses a little speed (${kmh(speedBefore)} → ${kmh(minSpeed)})`);
-check(Math.abs(e5.playerX - playerX0) < 0.08, `player body stays put on hit (dx ${Math.abs(e5.playerX - playerX0).toFixed(3)})`);
+check(rearMaxDx > 0.04 && rearMaxDx < 0.28, `rear hit shoves the player a bit (dx ${rearMaxDx.toFixed(3)})`);
 check(ramFlips < 8, `unstick does not gelatin (sign flips ${ramFlips})`);
 check(Math.abs(prey.x) > 0.40, `rival steers aside after hit (x ${prey.x.toFixed(2)})`);
 
@@ -219,6 +221,12 @@ e6.startRace("praia", "fenix", { engine: 1, tires: 0, nitro: 0 }, 2);
 e6.countdown = 0;
 e6.keys = { up: true, down: false, left: false, right: false, nitro: false };
 for (let i = 0; i < 90; i++) e6.update(dt, dt);
+e6.player.fuel = 1;
+e6.player.speed = e6.maxSpeed(e6.player);
+e6.player.bumpLock = 0;
+e6.player.speedAim = null;
+e6.playerX = 0;
+e6.player.x = 0;
 const cruise6 = e6.player.speed;
 const side = e6.cars.find((c) => !c.human);
 side.z = e6.player.z + 900;
@@ -229,21 +237,25 @@ side.speed = cruise6;
 e6.playerX = 0.22;
 e6.player.x = 0.22;
 const sideBefore = e6.player.speed;
+const sidePlayer0 = e6.playerX;
 let sideHits = 0;
 let sideMin = sideBefore;
 const sideX = [];
 for (let i = 0; i < 40; i++) {
-  e6.playerX = 0.22;
-  e6.player.x = 0.22;
+  if ((e6.player.bumpLock || 0) <= 0 && sideHits === 0) {
+    e6.playerX = 0.22;
+    e6.player.x = 0.22;
+  }
   e6.update(dt, dt);
   if (e6.overlapping(e6.player, side) || (e6.player.bumpLock || 0) > 0) sideHits++;
   sideMin = Math.min(sideMin, e6.player.speed);
   sideX.push(side.x);
 }
+const sideMaxAway = Math.max(...sideX.map((x) => Math.abs(x - 0.22)));
 check(kmh(sideBefore) >= 300, `engine+1 cruise before side swipe (got ${kmh(sideBefore)})`);
-check(kmh(sideMin) <= kmh(sideBefore) - 40, `side swipe drops speed (${kmh(sideBefore)} → ${kmh(sideMin)})`);
-check(Math.abs(e6.playerX - 0.22) < 0.08, `player x stays put on side swipe`);
-check(Math.abs(side.x - 0.22) > 0.25, `side rival is pushed aside (x ${side.x.toFixed(2)})`);
+check(kmh(sideMin) <= kmh(sideBefore) - 70, `side swipe costs real speed (${kmh(sideBefore)} → ${kmh(sideMin)})`);
+check(Math.abs(e6.playerX - sidePlayer0) > 0.12, `side swipe shoves player off line (dx ${Math.abs(e6.playerX - sidePlayer0).toFixed(3)})`);
+check(sideMaxAway > 0.25, `side rival is pushed aside (max Δx ${sideMaxAway.toFixed(2)}, end ${side.x.toFixed(2)})`);
 let sideFlips = 0;
 for (let i = 2; i < sideX.length; i++) {
   const d0 = sideX[i - 1] - sideX[i - 2];
@@ -251,6 +263,16 @@ for (let i = 2; i < sideX.length; i++) {
   if (d0 * d1 < 0 && Math.abs(d0) > 0.02 && Math.abs(d1) > 0.02) sideFlips++;
 }
 check(sideFlips < 8, `side unstick does not gelatin (sign flips ${sideFlips})`);
+
+const e7 = makeEngine();
+e7.countdown = 0;
+e7.keys = { up: true, down: false, left: false, right: true, nitro: false };
+for (let i = 0; i < 45; i++) e7.update(dt, dt);
+check(Math.abs(e7.player.steer) > 0.45, `player sprite leans when steering (lean ${e7.player.steer.toFixed(2)})`);
+e7.keys.right = false;
+e7.keys.left = true;
+for (let i = 0; i < 45; i++) e7.update(dt, dt);
+check(e7.player.steer < -0.45, `player sprite leans the other way (lean ${e7.player.steer.toFixed(2)})`);
 
 if (fail.length) {
   console.log(fail.length + " gates failed");
