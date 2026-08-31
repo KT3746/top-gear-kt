@@ -1446,17 +1446,27 @@ export class GameEngine {
       if (spr) sprites.push(spr);
     }
     sprites.sort((a, b) => b.z - a.z);
-    const playerHalf = 50 * CAR_SCALE_AT_PLAYER * (h / 720);
-    for (const s of sprites) {
-      if (!s.human && s.destY > s.clip + 24) continue;
-      if (!s.human) {
-        const nested = Math.abs(s.destX - w / 2) < playerHalf * 0.82 && s.destY > h * 0.70;
-        if (nested) continue;
-      }
+    const you = sprites.find((s) => s.human);
+    const pHalf = you ? 52 * you.s : 50 * CAR_SCALE_AT_PLAYER * (h / 720);
+    const pTop = you ? you.destY - 78 * you.s : h * 0.5;
+    const pBot = you ? you.destY + 28 * you.s : h;
+    const drawOne = (s) => {
       const nitro = s.human && this.mode === "race" && s.c.nitroBurst > 0;
       const st = s.human ? 0 : clamp(s.c.steer || 0, -0.28, 0.28);
       drawCar(this.ctx, s.destX, s.destY, s.s, s.c.car, st, nitro);
+    };
+    for (const s of sprites) {
+      if (s.human) continue;
+      if (s.destY > s.clip + 24) continue;
+      if (you) {
+        const rHalf = 52 * s.s;
+        const samePixels = Math.abs(s.destX - you.destX) < pHalf + rHalf * 0.45
+          && s.destY > pTop && s.destY < pBot + 40;
+        if (samePixels) continue;
+      }
+      drawOne(s);
     }
+    if (you) drawOne(you);
   }
 
   projectCar(c, projected, w, h, drawN) {
