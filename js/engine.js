@@ -12,6 +12,8 @@ const SPRITE_SCALE = 0.38;
 const CAR_SCALE_AT_PLAYER = 3.7;
 const CAR_HALF_W = 0.15;
 const CAR_HALF_L = 175;
+const CAR_SOLID_Z = CAR_HALF_L * 2.85;
+const CAR_SOLID_X = 0.60;
 const NITRO_CHARGES = 3;
 const NITRO_BURST = 1.15;
 const AI_LINES = [-0.72, 0.68, -0.28, 0.40, -0.52, 0.14, 0.78];
@@ -919,7 +921,7 @@ export class GameEngine {
   steerAside(car, fromX) {
     if (!car || car.human) return;
     const side = Math.sign(car.x - fromX) || (1 - 2 * ((car.aiIndex || 0) % 2));
-    const lane = clamp((fromX || 0) + side * 0.48, -0.82, 0.82);
+    const lane = clamp((fromX || 0) + side * 0.62, -0.82, 0.82);
     car.line = lane;
     car.lane = lane;
     car.laneT = Math.max(car.laneT || 0, 1.35);
@@ -930,7 +932,7 @@ export class GameEngine {
     const len = this.track.length;
     const adz = Math.abs(wrapDist(a.z, b.z, len));
     const adx = Math.abs(a.x - b.x);
-    return adz < CAR_HALF_L * 2 && adx < CAR_HALF_W * 2;
+    return adz < CAR_SOLID_Z && adx < CAR_SOLID_X;
   }
 
   unstickPair(a, b) {
@@ -939,30 +941,31 @@ export class GameEngine {
     const adz = Math.abs(dz);
     const dx = a.x - b.x;
     const adx = Math.abs(dx);
-    const minZ = CAR_HALF_L * 2;
-    const minX = CAR_HALF_W * 2.08;
+    const minZ = CAR_SOLID_Z;
+    const minX = CAR_SOLID_X;
     if (adz >= minZ || adx >= minX) return false;
 
     const ahead = dz >= 0 ? a : b;
     const behind = dz >= 0 ? b : a;
     const needZ = minZ - adz + 10;
-    const needX = minX - adx + 0.03;
+    const needX = minX - adx + 0.04;
     const side = Math.sign(behind.x - ahead.x) || (1 - 2 * ((behind.aiIndex || 0) % 2));
+    const shoveX = Math.max(needX, 0.58);
     const rearEnd = adx < CAR_HALF_W * 1.7;
 
     if (rearEnd && !ahead.human) {
-      this.shiftAI(ahead, 0, needZ);
+      this.shiftAI(ahead, side * shoveX, needZ);
     } else if (rearEnd && ahead.human && !behind.human) {
-      this.shiftAI(behind, side * Math.max(needX, 0.36), 0);
+      this.shiftAI(behind, side * shoveX, 0);
     } else if (!a.human && !b.human) {
-      this.shiftAI(a, Math.sign(dx || 1) * needX * 0.5, 0);
-      this.shiftAI(b, -Math.sign(dx || 1) * needX * 0.5, 0);
+      this.shiftAI(a, Math.sign(dx || 1) * shoveX * 0.5, 0);
+      this.shiftAI(b, -Math.sign(dx || 1) * shoveX * 0.5, 0);
       if (adz < minZ * 0.7 && !ahead.human) this.shiftAI(ahead, 0, needZ * 0.5);
     } else {
       const ai = a.human ? b : a;
       const hum = a.human ? a : b;
       const away = Math.sign(ai.x - hum.x) || side;
-      this.shiftAI(ai, away * Math.max(needX, 0.36), 0);
+      this.shiftAI(ai, away * shoveX, 0);
     }
     return true;
   }
@@ -1002,8 +1005,7 @@ export class GameEngine {
 
   collisions() {
     const len = this.track.length;
-    const halfW = CAR_HALF_W;
-    const minZ = CAR_HALF_L * 2;
+    const minZ = CAR_SOLID_Z;
     for (let i = 0; i < this.cars.length; i++) {
       for (let j = i + 1; j < this.cars.length; j++) {
         const a = this.cars[i];
@@ -1012,11 +1014,11 @@ export class GameEngine {
         const adz = Math.abs(dz);
         const dx = a.x - b.x;
         const adx = Math.abs(dx);
-        if (adz >= minZ || adx >= halfW * 2) continue;
+        if (adz >= minZ || adx >= CAR_SOLID_X) continue;
 
         const hitSpeed = Math.abs(a.speed - b.speed);
         const hardHit = hitSpeed > 480;
-        const sameLane = adx < halfW * 1.55;
+        const sameLane = adx < CAR_HALF_W * 1.55;
         const prevDz = wrapDist(a._prevZ ?? a.z, b._prevZ ?? b.z, len);
         const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
         const ahead = aAhead ? a : b;
@@ -1423,8 +1425,13 @@ export class GameEngine {
       if (spr) sprites.push(spr);
     }
     sprites.sort((a, b) => b.z - a.z);
+    const playerHalf = 50 * CAR_SCALE_AT_PLAYER * (h / 720);
     for (const s of sprites) {
       if (!s.human && s.destY > s.clip + 24) continue;
+      if (!s.human) {
+        const nested = Math.abs(s.destX - w / 2) < playerHalf * 0.82 && s.destY > h * 0.70;
+        if (nested) continue;
+      }
       const nitro = s.human && this.mode === "race" && s.c.nitroBurst > 0;
       const st = s.human ? 0 : clamp(s.c.steer || 0, -0.28, 0.28);
       drawCar(this.ctx, s.destX, s.destY, s.s, s.c.car, st, nitro);

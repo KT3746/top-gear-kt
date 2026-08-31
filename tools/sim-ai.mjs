@@ -211,7 +211,7 @@ check(overlapAfter === 0, `ram does not stay inside the other car (overlap frame
 check(minSpeed < speedBefore - 200, `ram loses a little speed (${kmh(speedBefore)} → ${kmh(minSpeed)})`);
 check(Math.abs(e5.playerX - playerX0) < 0.08, `player body stays put on hit (dx ${Math.abs(e5.playerX - playerX0).toFixed(3)})`);
 check(ramFlips < 8, `unstick does not gelatin (sign flips ${ramFlips})`);
-check(Math.abs(prey.x) > 0.12, `rival steers aside after hit (x ${prey.x.toFixed(2)})`);
+check(Math.abs(prey.x) > 0.40, `rival steers aside after hit (x ${prey.x.toFixed(2)})`);
 
 if (fail.length) {
   console.log(fail.length + " gates failed");
