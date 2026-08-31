@@ -100,6 +100,7 @@ class App {
     this.refreshCupButton();
     this.loop(performance.now());
     this.syncMute();
+    addEventListener("blur", () => this.clearInput());
   }
 
   bind() {
@@ -141,25 +142,38 @@ class App {
       const set = (on) => {
         this.pad[key] = on;
         el.classList.toggle("held", on);
+        this.engine.setKeys(this.driveKeys());
       };
-      el.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        el.setPointerCapture?.(e.pointerId);
-        this.audio.unlock();
+      const down = (e) => {
+        if (e.cancelable) e.preventDefault();
         set(true);
-      });
+        if (e.pointerId != null) el.setPointerCapture?.(e.pointerId);
+        queueMicrotask(() => this.audio.unlock());
+      };
       const off = (e) => {
-        e.preventDefault();
+        if (e.cancelable) e.preventDefault();
         set(false);
       };
+      el.addEventListener("pointerdown", down);
+      el.addEventListener("touchstart", down, { passive: false });
+      el.addEventListener("mousedown", down);
       el.addEventListener("pointerup", off);
       el.addEventListener("pointercancel", off);
-      el.addEventListener("lostpointercapture", off);
+      el.addEventListener("touchend", off, { passive: false });
+      el.addEventListener("touchcancel", off, { passive: false });
+      el.addEventListener("mouseup", off);
+      el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
   }
 
   driveKeys() {
     return this.phone ? this.pad : this.kb;
+  }
+
+  clearInput() {
+    this.kb.up = this.kb.down = this.kb.left = this.kb.right = this.kb.nitro = false;
+    this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
+    document.querySelectorAll(".pad.held").forEach((el) => el.classList.remove("held"));
   }
 
   onKey(e, down) {
@@ -174,7 +188,6 @@ class App {
       this.kb.nitro = down;
     }
     if (k === "Shift" || e.code === "ShiftLeft" || e.code === "ShiftRight") this.kb.nitro = down;
-    if (e.shiftKey) this.kb.nitro = true;
     if (!down) return;
     this.audio.unlock();
     if (k === "m" || k === "M") {
@@ -240,6 +253,13 @@ class App {
     if (el) {
       el.classList.remove("hidden");
       this.resetScroll(el);
+      if (name === "cars" || name === "tracks" || name === "shop") {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.querySelector("button.primary")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+          });
+        });
+      }
     }
     this.syncRotate();
   }
@@ -297,6 +317,7 @@ class App {
       this.show("race");
     }
     if (name === "restart") {
+      this.clearInput();
       this.engine.restart();
       this.show("race");
     }
@@ -496,6 +517,7 @@ class App {
 
   goRace(trackId) {
     this.trackId = trackId;
+    this.clearInput();
     this.engine.onFinish = (results) => this.finish(results);
     this.engine.startRace(trackId, this.carId, this.save.upgrades, 2);
     this.show("race");

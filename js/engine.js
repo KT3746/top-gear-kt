@@ -11,8 +11,8 @@ const PLAYER_Z = CAM_H * CAM_DEPTH;
 const CENTRIFUGAL = 0.09;
 const SPRITE_SCALE = 0.38;
 const CAR_SCALE_AT_PLAYER = 4.05;
-const CAR_HALF_W = 0.13;
-const CAR_HALF_L = 170;
+const CAR_HALF_W = 0.15;
+const CAR_HALF_L = 175;
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -390,7 +390,8 @@ export class GameEngine {
     this.player.nitro = 1;
     this.player.fuel = 1;
     this.player.laps = 0;
-    this.cars.forEach((c) => { c._lastZ = c.z; c.laps = 0; c.finished = false; });
+    this.keys = { up: false, down: false, left: false, right: false, nitro: false };
+    this.cars.forEach((c) => { c._lastZ = c.z; c._prevZ = c.z; c.laps = 0; c.finished = false; });
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
     this.audio.startMusic("race");
   }
@@ -445,6 +446,7 @@ export class GameEngine {
     this.time += dt;
     this.lapTime += dt;
     this.collisions();
+    this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
     this.pickups();
     this.rank();
     this.checkLaps();
@@ -457,27 +459,40 @@ export class GameEngine {
     const down = this.keys.down;
     const left = this.keys.left;
     const right = this.keys.right;
-    const boost = this.keys.nitro && p.nitro > 0 && p.fuel > 0;
-    const max = this.maxSpeed(p) * (boost ? 1.32 + (p.spec.nitro - 1) * 0.3 : 1);
-    const accel = 3400 * p.spec.accel * (boost ? 1.85 : 1);
+    const offAmt = Math.max(0, Math.abs(this.playerX) - 1);
+    const off = offAmt > 0.012;
+    const moving = p.speed > 40;
+    const boost = !!(this.keys.nitro && p.nitro > 0 && p.fuel > 0 && moving && !off);
+
+    let max = this.maxSpeed(p);
+    if (boost) max *= 1.32 + (p.spec.nitro - 1) * 0.3;
+    if (off) {
+      const dirt = 0.36 + ((p.spec.offroad || 1) - 1) * 0.12;
+      max *= dirt / (1 + offAmt * 1.15);
+    }
+
+    const accel = 3400 * p.spec.accel * (boost ? 1.85 : 1) * (off ? 0.42 : 1);
     if (up) p.speed += accel * dt;
-    else p.speed -= 520 * dt;
+    else p.speed -= (off ? 780 : 520) * dt;
     if (down) p.speed -= 3800 * dt;
-    p.speed = clamp(p.speed, 0, max);
-    const off = Math.abs(this.playerX) > 1;
-    if (off) p.speed -= (720 / (p.spec.offroad || 1)) * dt;
+    if (off && p.speed > max) {
+      p.speed -= (1600 + (p.speed - max) * 2.4) * dt;
+      if (p.speed < max) p.speed = max;
+    } else {
+      p.speed = clamp(p.speed, 0, max);
+    }
     p.speed = Math.max(0, p.speed);
 
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
-    const grip = p.spec.grip;
+    const grip = p.spec.grip * (off ? 0.32 : 1);
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    this.steer = lerp(this.steer, want, 7 * dt);
+    this.steer = lerp(this.steer, want, (off ? 3.2 : 7) * dt);
     this.playerX += this.steer * (0.92 + grip * 0.18) * (0.4 + 0.6 * speedPct) * dt;
     const look = this.findSeg(p.z + 12 * SEG);
-    this.playerX += (-look.curve * 0.034 * speedPct) * dt;
-    if (!want) this.playerX = lerp(this.playerX, clamp(-look.curve * 0.03, -0.25, 0.25), 1.25 * dt);
-    if (off) this.playerX -= Math.sign(this.playerX) * 0.85 * dt;
-    this.slip = lerp(this.slip, this.steer * speedPct * 0.7, 6 * dt);
+    this.playerX += (-look.curve * (off ? 0.07 : 0.034) * speedPct) * dt;
+    if (!want) this.playerX = lerp(this.playerX, clamp(-look.curve * 0.03, -0.25, 0.25), (off ? 0.35 : 1.25) * dt);
+    if (off) this.playerX -= Math.sign(this.playerX) * 0.55 * dt;
+    this.slip = lerp(this.slip, this.steer * speedPct * (off ? 1.35 : 0.7), 6 * dt);
     p.steer = this.slip;
 
     if (boost) {
@@ -571,9 +586,12 @@ export class GameEngine {
     if (!freezePlayer) {
       const seg = this.findSeg(p.z);
       const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
-      this.playerX -= dt * speedPct * seg.curve * CENTRIFUGAL / p.spec.grip;
+      this.playerX -= dt * speedPct * seg.curve * CENTRIFUGAL / (p.spec.grip * (Math.abs(this.playerX) > 1 ? 0.4 : 1));
+      p._prevZ = p.z;
       p.z += p.speed * dt;
       p.z = wrapZ(p.z, len);
+    } else {
+      p._prevZ = p.z;
     }
     this.playerX = clamp(this.playerX, -2.2, 2.2);
     p.x = this.playerX;
@@ -581,8 +599,13 @@ export class GameEngine {
     if (!freezeAI) {
       for (const c of this.cars) {
         if (c.human) continue;
+        c._prevZ = c.z;
         c.z += c.speed * dt;
         c.z = wrapZ(c.z, len);
+      }
+    } else {
+      for (const c of this.cars) {
+        if (!c.human) c._prevZ = c.z;
       }
     }
     this.shake = Math.max(0, this.shake - 18 * dt);
@@ -592,8 +615,8 @@ export class GameEngine {
   collisions() {
     const len = this.track.length;
     const halfW = CAR_HALF_W;
-    const halfL = CAR_HALF_L;
-    for (let pass = 0; pass < 3; pass++) {
+    const minZ = CAR_HALF_L * 2;
+    for (let pass = 0; pass < 4; pass++) {
       for (let i = 0; i < this.cars.length; i++) {
         for (let j = i + 1; j < this.cars.length; j++) {
           const a = this.cars[i];
@@ -602,41 +625,41 @@ export class GameEngine {
           const adz = Math.abs(dz);
           const dx = a.x - b.x;
           const adx = Math.abs(dx);
-          if (adz >= halfL * 2 || adx >= halfW * 2) continue;
+          if (adz >= minZ || adx >= halfW * 2) continue;
 
-          const overlapZ = halfL * 2 - adz;
-          const overlapX = halfW * 2 - adx;
           const hitSpeed = Math.abs(a.speed - b.speed);
-          const sameLane = adx < halfW * 1.35;
+          const sameLane = adx < halfW * 1.55;
+          const prevDz = wrapDist(a._prevZ ?? a.z, b._prevZ ?? b.z, len);
+          const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
+          const ahead = aAhead ? a : b;
+          const behind = aAhead ? b : a;
 
           if (sameLane) {
-            const sign = dz >= 0 ? 1 : -1;
-            a.z = wrapZ(a.z + sign * overlapZ * 0.51, len);
-            b.z = wrapZ(b.z - sign * overlapZ * 0.51, len);
-            const ahead = dz >= 0 ? a : b;
-            const behind = dz >= 0 ? b : a;
-            if (behind.speed > ahead.speed - 40) {
-              const slam = Math.max(160, behind.speed - ahead.speed);
-              behind.speed = Math.max(0, Math.min(behind.speed, ahead.speed) * 0.58 - 140);
-              ahead.speed = Math.min(this.maxSpeed(ahead) * 1.04, ahead.speed + slam * 0.08);
-            }
+            const dNow = wrapDist(ahead.z, behind.z, len);
+            const push = minZ - dNow;
+            if (push > 0) behind.z = wrapZ(behind.z - push, len);
+            const bounceX = (behind.x >= ahead.x ? 1 : -1) * 0.1;
+            behind.x = clamp(behind.x + bounceX, -1.65, 1.65);
+            ahead.x = clamp(ahead.x - bounceX * 0.32, -1.65, 1.65);
+            behind.speed = Math.min(behind.speed, Math.max(0, ahead.speed * 0.42));
+            ahead.speed *= 0.97;
           } else {
-            const side = (dx >= 0 ? 1 : -1) || 1;
-            a.x += side * overlapX * 0.52;
-            b.x -= side * overlapX * 0.52;
-            a.speed *= 0.88;
-            b.speed *= 0.88;
+            const overlapX = halfW * 2 - adx;
+            const side = Math.sign(dx) || 1;
+            a.x = clamp(a.x + side * Math.max(overlapX * 0.5, 0.06), -1.65, 1.65);
+            b.x = clamp(b.x - side * Math.max(overlapX * 0.5, 0.06), -1.65, 1.65);
+            a.speed *= 0.82;
+            b.speed *= 0.82;
           }
-          a.x = clamp(a.x, -1.65, 1.65);
-          b.x = clamp(b.x, -1.65, 1.65);
+
           if (a.human) this.playerX = a.x;
           if (b.human) this.playerX = b.x;
 
-          if ((a.human || b.human) && hitSpeed > 180) {
-            this.shake = Math.max(this.shake, 10);
+          if ((a.human || b.human) && hitSpeed > 120) {
+            this.shake = Math.max(this.shake, 12);
             if (this.bumpCool <= 0) {
               this.audio.bump();
-              this.bumpCool = 0.28;
+              this.bumpCool = 0.22;
             }
           }
         }
@@ -730,7 +753,7 @@ export class GameEngine {
       fuel: p?.fuel || 0,
       toast: this.toastT > 0 && this.toast ? this.toast : "",
       countdown: this.countdown,
-      boosting: !!(this.keys.nitro && p?.nitro > 0 && p?.fuel > 0),
+      boosting: !!(this.keys.nitro && p?.nitro > 0 && p?.fuel > 0 && (p?.speed || 0) > 40 && Math.abs(this.playerX) <= 1),
       finished: this.finished,
     };
   }
