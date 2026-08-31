@@ -83,6 +83,7 @@ class App {
     this.phone = getModo() === "celular";
     this.kb = { up: false, down: false, left: false, right: false, nitro: false };
     this.pad = { up: false, down: false, left: false, right: false, nitro: false };
+    this.goLatch = false;
     this.screen = "title";
     this.carId = this.save.carId;
     this.trackId = TRACKS[0].id;
@@ -150,40 +151,87 @@ class App {
   bindPads() {
     document.querySelectorAll("[data-hold]").forEach((el) => {
       const key = el.dataset.hold;
-      const set = (on) => {
+      const active = new Set();
+      const sync = () => {
+        const on = active.size > 0;
         this.pad[key] = on;
         el.classList.toggle("held", on);
         this.engine.setKeys(this.driveKeys());
       };
+      const add = (id) => {
+        active.add(id);
+        if (key === "up") this.goLatch = true;
+        if (key === "down") this.goLatch = false;
+        sync();
+      };
+      const drop = (id) => {
+        active.delete(id);
+        if (key === "up" && active.size === 0) {
+          const racing = this.engine.countdown <= 0 && (this.engine.time || 0) > 1.2;
+          if (racing) this.goLatch = false;
+        }
+        sync();
+      };
       const down = (e) => {
         if (e.cancelable) e.preventDefault();
-        set(true);
-        if (e.pointerId != null) el.setPointerCapture?.(e.pointerId);
+        if (e.changedTouches) {
+          for (const t of e.changedTouches) add("t" + t.identifier);
+        } else if (e.pointerId != null && e.type.startsWith("pointer")) {
+          add("p" + e.pointerId);
+          try { el.setPointerCapture?.(e.pointerId); } catch (_) {}
+        } else {
+          add("mouse");
+        }
         queueMicrotask(() => this.audio.unlock());
       };
       const off = (e) => {
         if (e.cancelable) e.preventDefault();
-        set(false);
+        if (e.changedTouches) {
+          for (const t of e.changedTouches) drop("t" + t.identifier);
+        } else if (e.pointerId != null && e.type.startsWith("pointer")) {
+          drop("p" + e.pointerId);
+        } else {
+          drop("mouse");
+        }
+      };
+      const keep = (e) => {
+        if (e.cancelable) e.preventDefault();
+        if (e.changedTouches) {
+          for (const t of e.changedTouches) add("t" + t.identifier);
+        } else if (e.pointerId != null) {
+          add("p" + e.pointerId);
+        }
       };
       el.addEventListener("pointerdown", down);
       el.addEventListener("touchstart", down, { passive: false });
       el.addEventListener("mousedown", down);
       el.addEventListener("pointerup", off);
-      el.addEventListener("pointercancel", off);
       el.addEventListener("touchend", off, { passive: false });
-      el.addEventListener("touchcancel", off, { passive: false });
       el.addEventListener("mouseup", off);
+      el.addEventListener("pointercancel", keep);
+      el.addEventListener("touchcancel", keep, { passive: false });
+      el.addEventListener("lostpointercapture", keep);
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
   }
 
   driveKeys() {
-    return this.phone ? this.pad : this.kb;
+    if (!this.phone) return this.kb;
+    const e = this.engine;
+    const latched = this.goLatch && (e.countdown > 0 || (e.time || 0) < 1.2);
+    return {
+      up: !!(this.pad.up || latched),
+      down: this.pad.down,
+      left: this.pad.left,
+      right: this.pad.right,
+      nitro: this.pad.nitro,
+    };
   }
 
   clearInput() {
     this.kb.up = this.kb.down = this.kb.left = this.kb.right = this.kb.nitro = false;
     this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
+    this.goLatch = false;
     document.querySelectorAll(".pad.held").forEach((el) => el.classList.remove("held"));
   }
 

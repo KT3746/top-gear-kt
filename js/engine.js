@@ -511,16 +511,17 @@ export class GameEngine {
       nudgeX: 0,
       nudgeZ: 0,
       speedAim: null,
+      bumpLock: 0,
     };
     this.cars.push(this.player);
     const pool = CARS.filter((c) => c.id !== playerCarId);
     const traffic = pool.length ? pool : CARS;
+    const LINES = [-0.70, 0.66, -0.22, 0.42, -0.54, 0.18, 0.78];
     DRIVERS.filter((d) => !d.human).forEach((d, i) => {
       const base = traffic[i % traffic.length] || CARS[(i + 1) % CARS.length];
-      const row = Math.floor(i / 2);
-      const slot = i % 2 === 0 ? -0.28 : 0.28;
-      const x = i === 6 ? 0 : slot;
-      const z = PLAYER_Z + 48 + row * 95 + (i % 2) * 18 + (i > 3 ? 220 : 0);
+      const line = LINES[i % LINES.length];
+      const x = line;
+      const z = PLAYER_Z + 400 + i * 280 + (i % 3) * 55;
       this.cars.push({
         human: false,
         name: d.name,
@@ -539,9 +540,12 @@ export class GameEngine {
         place: i + 2,
         steer: 0,
         lane: x,
+        line,
+        aiIndex: i,
         nudgeX: 0,
         nudgeZ: 0,
         speedAim: null,
+        bumpLock: 0,
       });
     });
   }
@@ -579,6 +583,7 @@ export class GameEngine {
       c.nudgeX = 0;
       c.nudgeZ = 0;
       c.speedAim = null;
+      c.bumpLock = 0;
     });
     this.position = wrapZ(this.player.z - PLAYER_Z, this.track.length);
     this.camZ = this.position;
@@ -753,49 +758,91 @@ export class GameEngine {
   driveAI(dt) {
     const len = this.track.length;
     const player = this.player;
+    const playerMax = this.maxSpeed(player);
     const playerLead = this.progress(player);
     for (const c of this.cars) {
       if (c.human || c.finished) continue;
-      const look = this.findSeg(c.z + 18 * SEG);
+      const lookFar = this.findSeg(c.z + (12 + c.skill * 8) * SEG);
+      const lookNear = this.findSeg(c.z + 6 * SEG);
       const here = this.findSeg(c.z);
-      const danger = Math.abs(look.curve) + Math.abs(here.curve);
-      const onCorner = danger > 1.15;
-      let target = onCorner
-        ? this.maxSpeed(c) * (0.72 + c.skill * 0.12)
-        : this.maxSpeed(c) * (0.95 + c.skill * 0.14);
+      const bend = Math.max(Math.abs(here.curve), Math.abs(lookNear.curve), Math.abs(lookFar.curve));
+      const onCorner = bend > 2.6;
+      const hardCorner = bend > 4.5;
+      const ownMax = this.maxSpeed(c);
+      const pace = playerMax;
+      const ego = 0.99 + ((c.aiIndex || 0) % 3) * 0.02;
+      let target;
+      if (hardCorner) target = pace * (0.88 + c.skill * 0.06);
+      else if (onCorner) target = pace * (0.96 + c.skill * 0.04);
+      else target = pace * (1.02 + c.skill * 0.06);
+      target *= ego;
+      if (ownMax > pace) target = Math.min(target, pace * 1.1);
+
       const gap = playerLead - this.progress(c);
-      if (gap > 40 && gap < 1400) target *= 1.08;
-      if (gap > len * 0.06) target *= 1.06;
-      const boost = !onCorner && c.nitro > 0.22 && c.nerve > 0.55;
+      if (gap > 60) target *= 1.04;
+      if (gap < -120) target = Math.max(target, pace * 0.98);
+
+      const boost = !hardCorner && c.nitro > 0.16 && (gap > 50 || (!onCorner && c.nerve > 0.72 && (c.aiIndex || 0) % 2 === 0));
       if (boost) {
-        target *= 1.12;
-        c.nitro -= dt * 0.32;
+        target *= 1.1 + c.nerve * 0.03;
+        c.nitro -= dt * 0.28;
       }
       c.nitro = Math.max(0, c.nitro);
-      if (c.speed < target) c.speed += 2900 * c.spec.accel * dt;
-      else c.speed -= 1500 * dt;
-      c.speed = clamp(c.speed, 0, this.maxSpeed(c) * 1.14);
 
-      let lane = c.lane;
-      const aheadOfPlayer = wrapDist(c.z, player.z, len);
-      if (onCorner && aheadOfPlayer > 12 && aheadOfPlayer < 260 && Math.abs(player.x - c.x) < 0.62) {
-        lane = lerp(lane, player.x, 0.7);
+      const preferred = c.line ?? c.lane ?? 0;
+      let lane = preferred;
+      if (onCorner) {
+        const inside = clamp(-Math.sign(here.curve || lookNear.curve || 1) * (0.32 + c.skill * 0.22), -0.84, 0.84);
+        lane = lerp(preferred, inside, hardCorner ? 0.88 : 0.42);
       }
+
+      const dzPlayer = wrapDist(c.z, player.z, len);
+      if (dzPlayer > 16 && dzPlayer < 560 && Math.abs(player.x - c.x) < 0.9) {
+        if (hardCorner || dzPlayer < 260) {
+          lane = lerp(lane, player.x, hardCorner ? 0.92 : 0.5);
+        }
+      }
+
+      let blocked = null;
+      let pack = 0;
       for (const o of this.cars) {
         if (o === c) continue;
         const dz = wrapDist(o.z, c.z, len);
-        if (dz > 0 && dz < SEG * 8 && Math.abs(o.x - c.x) < CAR_HALF_W * 2.2) {
-          const side = c.x >= o.x ? 1 : -1;
-          if (!(o.human && onCorner && aheadOfPlayer > 0 && aheadOfPlayer < 260)) {
-            lane = clamp(o.x + side * 0.4, -0.78, 0.78);
-          }
+        if (Math.abs(dz) < 160) pack++;
+        if (dz > 10 && dz < SEG * 7 && Math.abs(o.x - c.x) < 0.36) {
+          if (!blocked || dz < wrapDist(blocked.z, c.z, len)) blocked = o;
         }
       }
-      const hold = clamp(-here.curve * 0.045, -0.5, 0.5);
-      const dest = clamp(lerp(lane, hold, 0.18), -0.88, 0.88);
-      c.x = lerp(c.x, dest, (2.1 + c.skill) * dt);
+      if (blocked) {
+        const preferRight = ((c.aiIndex || 0) + (c.nerve > 0.7 ? 1 : 0)) % 2 === 0;
+        const side = preferRight ? 1 : -1;
+        let passX = clamp(blocked.x + side * (0.5 + ((c.aiIndex || 0) % 3) * 0.08), -0.86, 0.86);
+        let taken = false;
+        for (const o of this.cars) {
+          if (o === c) continue;
+          const dz = wrapDist(o.z, c.z, len);
+          if (dz > -40 && dz < 380 && Math.abs(o.x - passX) < 0.3) taken = true;
+        }
+        if (taken) passX = clamp(blocked.x - side * 0.52, -0.86, 0.86);
+        if (!(blocked.human && hardCorner && dzPlayer > 0 && dzPlayer < 280)) {
+          lane = passX;
+        }
+        if (!onCorner) target *= 1.05;
+      }
+      if (pack >= 2) {
+        lane = preferred;
+        if (!hardCorner) target *= 1.04 + Math.max(0, c.skill - 0.8) * 0.12;
+      }
+
+      const accel = (c.speed < pace * 0.55 ? 5200 : 4000) * c.spec.accel;
+      if (c.speed < target) c.speed += accel * dt;
+      else c.speed -= (hardCorner ? 820 : onCorner ? 480 : 280) * dt;
+      c.speed = clamp(c.speed, 0, pace * 1.16);
+
+      const dest = clamp(lane, -0.88, 0.88);
+      c.x = lerp(c.x, dest, (2.6 + c.skill) * dt);
       c.steer = (dest - c.x) * 4;
-      if (Math.abs(c.x) > 1) c.speed *= 0.96;
+      if (Math.abs(c.x) > 1.02) c.speed = Math.min(c.speed, ownMax * 0.55);
       c.fuel = Math.max(0.2, c.fuel - dt * 0.01);
     }
   }
@@ -846,8 +893,10 @@ export class GameEngine {
   }
 
   queueSlow(car, factor) {
+    if ((car.bumpLock || 0) > 0) return;
     const aim = Math.max(0, car.speed * factor);
     if (car.speedAim == null || aim < car.speedAim) car.speedAim = aim;
+    car.bumpLock = 0.45;
   }
 
   queueNudge(car, dx, dz) {
@@ -859,12 +908,16 @@ export class GameEngine {
   settleBumps(dt) {
     const len = this.track.length;
     const k = 1 - Math.exp(-11 * dt);
-    const maxX = 0.9 * dt;
-    const maxZ = 420 * dt;
+    const maxX = 1.6 * dt;
+    const maxZ = 900 * dt;
     for (const c of this.cars) {
+      if (c.bumpLock > 0) c.bumpLock -= dt;
       if (c.speedAim != null) {
-        c.speed = lerp(c.speed, c.speedAim, k);
-        if (c.speed <= c.speedAim + 6) c.speedAim = null;
+        if ((c.bumpLock || 0) <= 0) {
+          c.speedAim = null;
+        } else {
+          c.speed = lerp(c.speed, c.speedAim, k);
+        }
       }
       if (c.human) continue;
       if (c.nudgeX) {
@@ -897,6 +950,7 @@ export class GameEngine {
         if (adz >= minZ || adx >= halfW * 2) continue;
 
         const hitSpeed = Math.abs(a.speed - b.speed);
+        const hardHit = hitSpeed > 480;
         const sameLane = adx < halfW * 1.55;
         const prevDz = wrapDist(a._prevZ ?? a.z, b._prevZ ?? b.z, len);
         const aAhead = prevDz !== 0 ? prevDz > 0 : dz >= 0;
@@ -907,16 +961,20 @@ export class GameEngine {
           const dNow = wrapDist(ahead.z, behind.z, len);
           const push = minZ - dNow;
           if (behind.human) {
-            this.queueSlow(behind, 0.72);
-            this.queueSlow(ahead, 0.96);
+            if (hardHit) {
+              this.queueSlow(behind, 0.72);
+              this.queueSlow(ahead, 0.96);
+            }
             if (push > 0) this.queueNudge(ahead, 0, push);
           } else {
             if (push > 0) this.queueNudge(behind, 0, -push);
             const side = Math.sign(behind.x - ahead.x) || 1;
             const wantX = clamp(ahead.x + side * Math.max(halfW * 1.65, adx), -1.65, 1.65);
             this.queueNudge(behind, wantX - behind.x, 0);
-            this.queueSlow(behind, 0.72);
-            this.queueSlow(ahead, 0.94);
+            if (hardHit) {
+              this.queueSlow(behind, 0.72);
+              this.queueSlow(ahead, 0.94);
+            }
           }
         } else {
           const overlapX = halfW * 2 - adx;
@@ -924,17 +982,23 @@ export class GameEngine {
           const split = Math.max(overlapX * 0.5, 0.05);
           if (a.human && !b.human) {
             this.queueNudge(b, -side * Math.max(overlapX, 0.08), 0);
-            this.queueSlow(a, 0.9);
-            this.queueSlow(b, 0.86);
+            if (hardHit) {
+              this.queueSlow(a, 0.9);
+              this.queueSlow(b, 0.86);
+            }
           } else if (b.human && !a.human) {
             this.queueNudge(a, side * Math.max(overlapX, 0.08), 0);
-            this.queueSlow(a, 0.86);
-            this.queueSlow(b, 0.9);
+            if (hardHit) {
+              this.queueSlow(a, 0.86);
+              this.queueSlow(b, 0.9);
+            }
           } else {
             this.queueNudge(a, side * split, 0);
             this.queueNudge(b, -side * split, 0);
-            this.queueSlow(a, 0.88);
-            this.queueSlow(b, 0.88);
+            if (hardHit) {
+              this.queueSlow(a, 0.88);
+              this.queueSlow(b, 0.88);
+            }
           }
         }
 
@@ -964,12 +1028,25 @@ export class GameEngine {
   }
 
   progress(car) {
-    return car.laps * this.track.length + car.z;
+    const len = this.track.length;
+    return (car.laps || 0) * len + wrapZ(car.z, len);
+  }
+
+  aheadOf(a, b) {
+    return this.progress(a) > this.progress(b);
+  }
+
+  livePlace(car = this.player) {
+    if (!car || !this.track) return 1;
+    let place = 1;
+    for (const o of this.cars) {
+      if (o !== car && this.aheadOf(o, car)) place++;
+    }
+    return place;
   }
 
   rank() {
-    const order = [...this.cars].sort((a, b) => this.progress(b) - this.progress(a));
-    order.forEach((c, i) => { c.place = i + 1; });
+    for (const c of this.cars) c.place = this.livePlace(c);
   }
 
   checkLaps() {
@@ -977,7 +1054,7 @@ export class GameEngine {
     for (const c of this.cars) {
       const prev = c._lastZ ?? c.z;
       const z = c.z;
-      const crossed = prev > len * 0.72 && z < len * 0.28;
+      const crossed = prev - z > len * 0.4;
       if (crossed && this.countdown <= 0 && !c.finished) {
         c.laps += 1;
         if (c.human) {
@@ -1029,7 +1106,7 @@ export class GameEngine {
     const p = this.player;
     return {
       speed: Math.round((p?.speed || 0) / 22),
-      place: p?.place || 1,
+      place: this.livePlace(p),
       field: this.cars.length,
       lap: this.laps,
       laps: this.totalLaps,
