@@ -382,12 +382,12 @@ body.racing .top-tools {
 }
 
 .hud-card {
-  background: rgba(4, 8, 16, 0.84);
-  border: 1px solid rgba(255,255,255,0.22);
-  border-radius: 14px;
+  background: rgba(2, 4, 10, 0.92);
+  border: 1px solid rgba(255,255,255,0.38);
+  border-radius: 10px;
   padding: 8px 14px;
   min-width: 92px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7);
 }
 
 .hud-card.wide { min-width: 140px; }
@@ -414,11 +414,12 @@ body.racing .top-tools {
 }
 
 #minimap {
-  width: 150px;
-  height: 150px;
-  background: rgba(7, 11, 20, 0.55);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 16px;
+  width: 180px;
+  height: 180px;
+  background: rgba(4, 8, 14, 0.78);
+  border: 2px solid rgba(255,255,255,0.32);
+  border-radius: 8px;
+  overflow: visible;
 }
 
 .hud-bottom {
@@ -601,9 +602,9 @@ body.racing .top-tools {
   .grid-4, .grid-tracks, .shop-grid { grid-template-columns: 1fr 1fr; }
   .hud-card strong { font-size: 28px; }
   .speedo strong { font-size: 56px; }
-  #minimap { width: 110px; height: 110px; }
+  #minimap { width: 128px; height: 128px; }
   body.racing .top-tools {
-    right: calc(max(12px, env(safe-area-inset-right)) + 122px);
+    right: calc(max(12px, env(safe-area-inset-right)) + 142px);
   }
 }
 
@@ -638,11 +639,11 @@ body.modo-celular.racing .speedo strong { font-size: 36px; line-height: 0.9; }
 body.modo-celular.racing .bars { width: 100%; }
 body.modo-celular.racing .hud-card { padding: 4px 10px; min-width: 72px; }
 body.modo-celular.racing .hud-card strong { font-size: 24px; }
-body.modo-celular.racing #minimap { width: 88px; height: 88px; }
+body.modo-celular.racing #minimap { width: 122px; height: 122px; }
 body.modo-celular.racing .hud-mid { top: max(10px, env(safe-area-inset-top)); }
 body.modo-celular.racing .top-tools {
   top: max(8px, env(safe-area-inset-top));
-  right: calc(max(10px, env(safe-area-inset-right)) + 98px);
+  right: calc(max(10px, env(safe-area-inset-right)) + 136px);
 }
 
 @media (orientation: landscape) and (max-height: 480px) {
@@ -679,9 +680,9 @@ body.rotate-block .pads {
   .hud-card { min-width: 110px; padding: 10px 16px; }
   .speedo { padding: 10px 18px 12px; }
   .speedo strong { font-size: 92px; }
-  #minimap { width: 168px; height: 168px; }
+  #minimap { width: 180px; height: 180px; }
   body.racing .top-tools {
-    right: calc(max(12px, env(safe-area-inset-right)) + 186px);
+    right: calc(max(12px, env(safe-area-inset-right)) + 198px);
   }
   .hud-top { gap: 12px; }
 }

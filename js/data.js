@@ -3,8 +3,8 @@ export const CARS = [
     id: "fenix",
     name: "Fênix R",
     tag: "Equilíbrio. Perdoa erro e ainda chega.",
-    color: "#e23b2f",
-    accent: "#ffd36a",
+    color: "#9b1b1b",
+    accent: "#c5c8ce",
     silhouette: "gt",
     top: 286,
     accel: 1.0,
@@ -16,8 +16,8 @@ export const CARS = [
     id: "gaviao",
     name: "Gavião",
     tag: "Cola no chão. Curva como se fosse trilho.",
-    color: "#1f8a7a",
-    accent: "#b8fff0",
+    color: "#14382e",
+    accent: "#8a9aa3",
     silhouette: "wide",
     top: 268,
     accel: 0.92,
@@ -29,8 +29,8 @@ export const CARS = [
     id: "cometa",
     name: "Cometa",
     tag: "Reta é o recado. Segura nas curvas.",
-    color: "#f0b429",
-    accent: "#1b1b1b",
+    color: "#cfc8b8",
+    accent: "#8a6a16",
     silhouette: "long",
     top: 318,
     accel: 1.12,
@@ -42,8 +42,8 @@ export const CARS = [
     id: "sombra",
     name: "Sombra",
     tag: "Arranque e nitro. Sai na frente e some.",
-    color: "#6b4cff",
-    accent: "#e9d9ff",
+    color: "#1a1e2c",
+    accent: "#6e7c90",
     silhouette: "box",
     top: 274,
     accel: 1.28,
@@ -55,9 +55,13 @@ export const CARS = [
 
 export const DRIVERS = [
   { id: "you", name: "Você", human: true },
-  { id: "rico", name: "Rico Mendes", skill: 0.86, nerve: 0.7 },
-  { id: "lila", name: "Lila Costa", skill: 0.92, nerve: 0.55 },
-  { id: "kenji", name: "Kenji Arai", skill: 0.8, nerve: 0.88 },
+  { id: "rico", name: "Rico Mendes", skill: 0.94, nerve: 0.82 },
+  { id: "lila", name: "Lila Costa", skill: 0.97, nerve: 0.7 },
+  { id: "kenji", name: "Kenji Arai", skill: 0.9, nerve: 0.95 },
+  { id: "bia", name: "Bia Prado", skill: 0.84, nerve: 0.68 },
+  { id: "omar", name: "Omar Dias", skill: 0.8, nerve: 0.74 },
+  { id: "tess", name: "Tess Vieira", skill: 0.86, nerve: 0.6 },
+  { id: "nico", name: "Nico Bel", skill: 0.78, nerve: 0.88 },
 ];
 
 export const UPGRADES = {
@@ -75,14 +79,15 @@ export const UPGRADES = {
   },
   nitro: {
     name: "Nitro",
-    blurb: "O empurrão dura mais e empurra mais forte.",
+    blurb: "Cada rajada dura um pouco mais. Ainda são poucas por corrida.",
     costs: [260, 720, 1350],
     max: 3,
   },
 };
 
-export const PRIZE = [800, 450, 250, 120];
-export const POINTS = [10, 6, 3, 1];
+export const PRIZE = [800, 520, 340, 220, 120, 80, 50, 30];
+export const POINTS = [10, 8, 6, 4, 2, 1, 0, 0];
+export const QUALIFY = 4;
 
 const EASY = 2.2;
 const MED = 3.8;
