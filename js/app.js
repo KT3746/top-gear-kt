@@ -107,6 +107,9 @@ class App {
       if (this.screen === "race") return;
       this.clearInput();
     });
+    try {
+      if (new URLSearchParams(location.search).get("v")) window.__relampago = this;
+    } catch (_) {}
   }
 
   bind() {
