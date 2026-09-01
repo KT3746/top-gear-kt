@@ -972,38 +972,67 @@ export class GameEngine {
     const h = this.canvas.height || 390;
     const pS = CAR_SCALE_AT_PLAYER * (h / 720);
     const rS = clamp(sc * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER, 0.14, (h / 720) * 8);
-    const needPx = 50 * pS + 48 * rS + 16;
+    const needPx = 58 * pS + 52 * rS + 18;
     const worldPerPx = sc * ROAD * (w / 2);
     if (worldPerPx < 1e-6) return 0.9;
-    return clamp(needPx / worldPerPx, 0.45, 1.15);
+    return clamp(needPx / worldPerPx, 0.45, 1.25);
+  }
+
+  spriteBox(x, y, scale, steer = 0) {
+    const sx = scale;
+    const sy = scale * 1.22;
+    const st = clamp(steer || 0, -1, 1);
+    const cx = x + st * 18 * sx;
+    const fat = 52 + Math.abs(st) * 10;
+    return {
+      l: cx - fat * sx,
+      r: cx + fat * sx,
+      t: y - 32 * sy,
+      b: y + 24 * sy,
+    };
+  }
+
+  boxesTouch(a, b) {
+    const ox = Math.min(a.r, b.r) - Math.max(a.l, b.l);
+    const oy = Math.min(a.b, b.b) - Math.max(a.t, b.t);
+    return ox > 10 && oy > 12;
+  }
+
+  rivalScreenPose(car) {
+    const w = this.canvas.width || 844;
+    const h = this.canvas.height || 390;
+    if (car._drawX != null && car._drawY != null && car._drawS != null) {
+      return { x: car._drawX, y: car._drawY, s: car._drawS };
+    }
+    const dz = this.aiDepth(car);
+    const cz = Math.max(90, PLAYER_Z + dz);
+    const sc = CAM_DEPTH / cz;
+    return {
+      x: w / 2 + sc * (car.x - (this.playerX ?? 0)) * ROAD * (w / 2),
+      y: h / 2 + sc * CAM_H * (h / 2),
+      s: clamp(sc * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER, 0.14, (h / 720) * 8),
+    };
+  }
+
+  playerScreenBox() {
+    const w = this.canvas.width || 844;
+    const h = this.canvas.height || 390;
+    const s = CAR_SCALE_AT_PLAYER * (h / 720);
+    return this.spriteBox(w / 2, h * 0.86, s, this.lean || this.player?.steer || 0);
   }
 
   spriteHitsPlayer(car) {
     if (!car || car.human || !this.player) return false;
     const dz = this.aiDepth(car);
-    if (dz < 40 || dz > 1400) return false;
-    const adx = Math.abs(car.x - (this.playerX ?? this.player.x));
-    if (adx > 0.38) return false;
-    const cz = Math.max(90, PLAYER_Z + dz);
-    const sc = CAM_DEPTH / cz;
-    const w = this.canvas.width || 844;
-    const h = this.canvas.height || 390;
-    const pS = CAR_SCALE_AT_PLAYER * (h / 720);
-    const rS = clamp(sc * CAM_H * (h / 720) * CAR_SCALE_AT_PLAYER, 0.14, (h / 720) * 8);
-    const px = w / 2;
-    const py = h * 0.86;
-    const pHalf = 50 * pS;
-    const pTop = py - 42 * pS * 1.22;
-    const pBot = py + 22 * pS * 1.22;
-    const destX = car._drawX != null ? car._drawX : px + sc * (car.x - (this.playerX ?? 0)) * ROAD * (w / 2);
-    const destY = car._drawY != null ? car._drawY : h / 2 + sc * CAM_H * (h / 2);
-    if (destY < h * 0.70) return false;
-    const rHalf = 50 * rS;
-    const rTop = destY - 32 * rS * 1.22;
-    const rBot = destY + 22 * rS * 1.22;
-    const xHit = Math.abs(destX - px) < pHalf + rHalf * 0.7;
-    const yHit = rTop < pBot && rBot > pTop;
-    return xHit && yHit;
+    if (dz < 50 || dz > 1500) return false;
+    const pose = this.rivalScreenPose(car);
+    if (pose.s < 0.62) return false;
+    const pb = this.playerScreenBox();
+    const rb = this.spriteBox(pose.x, pose.y, pose.s, car.steer || 0);
+    if (!this.boxesTouch(pb, rb)) return false;
+    const body = pb.t + (pb.b - pb.t) * 0.22;
+    if (rb.b < body) return false;
+    return true;
   }
 
   overlapping(a, b) {
@@ -1016,7 +1045,7 @@ export class GameEngine {
       const ai = a.human ? b : a;
       const dz = this.aiDepth(ai);
       const adx = Math.abs(ai.x - (this.playerX ?? this.player.x));
-      if (dz > 0 && dz < CAR_BODY_Z && adx < 0.48) return true;
+      if (dz > 0 && dz < CAR_BODY_Z && adx < 0.28) return true;
       return this.spriteHitsPlayer(ai);
     }
     return adz < CAR_HALF_L * 2 && adx < CAR_HALF_W * 2;
@@ -1118,15 +1147,14 @@ export class GameEngine {
       const adx = Math.abs(c.x - p.x);
       const firstHit = (p.bumpLock || 0) <= 0;
       if (firstHit) {
-        const rear = dz > 0 && dz < CAR_BODY_Z && adx < 0.40;
+        const rear = dz > 0 && dz < CAR_BODY_Z && adx < 0.28;
         const away = Math.sign(this.playerX - c.x) || -1;
+        this.hitPlayer(0.70);
+        this.queueSlow(c, 0.80);
         if (rear) {
-          this.hitPlayer(0.70);
-          this.queueSlow(c, 0.80);
           this.shovePlayer(away * 0.10);
+          this.shiftAI(c, -away * 0.42, 0);
         } else {
-          this.hitPlayer(0.58);
-          this.queueSlow(c, 0.68);
           this.shovePlayer(away * 0.32);
           this.shiftAI(c, -away * 0.40, 0);
           this.steer = clamp((this.steer || 0) + away * 0.70, -1, 1);
@@ -1140,7 +1168,8 @@ export class GameEngine {
         }
       }
       this.unstickFromPlayer(c);
-      if (this.overlapping(p, c)) this.unstickFromPlayer(c);
+      if (this.overlapping(p, c) || this.spriteHitsPlayer(c)) this.unstickFromPlayer(c);
+      if (this.spriteHitsPlayer(c)) this.unstickFromPlayer(c);
     }
     for (let i = 0; i < this.cars.length; i++) {
       for (let j = i + 1; j < this.cars.length; j++) {

@@ -284,6 +284,51 @@ e7.keys.left = true;
 for (let i = 0; i < 45; i++) e7.update(dt, dt);
 check(e7.player.steer < -0.45, `player sprite leans the other way (lean ${e7.player.steer.toFixed(2)})`);
 
+const e8 = new GameEngine(canvas, audio);
+e8.setPhone(true);
+e8.startRace("praia", "fenix", { engine: 1, tires: 0, nitro: 0 }, 2);
+e8.countdown = 0;
+e8.keys = { up: true, down: false, left: false, right: false, nitro: false };
+for (let i = 0; i < 90; i++) {
+  e8.update(dt, dt);
+  e8.render();
+}
+e8.player.fuel = 1;
+e8.player.speed = e8.maxSpeed(e8.player);
+e8.player.bumpLock = 0;
+e8.player.speedAim = null;
+e8.sideShock = 0;
+const packBefore = kmh(e8.player.speed);
+let packMin = e8.player.speed;
+let everLock = false;
+let offTrack = false;
+for (let i = 0; i < 90; i++) {
+  let target = null;
+  let best = 9;
+  for (const c of e8.cars) {
+    if (c.human) continue;
+    const dz = e8.aiDepth(c);
+    if (dz < 200 || dz > 1400) continue;
+    const adx = Math.abs(c.x - e8.playerX);
+    if (adx < best) {
+      best = adx;
+      target = c;
+    }
+  }
+  const want = target ? Math.sign(target.x - e8.playerX) : 1;
+  e8.keys.right = want > 0 && e8.playerX < 0.82;
+  e8.keys.left = want < 0 && e8.playerX > -0.82;
+  e8.update(dt, dt);
+  e8.render();
+  packMin = Math.min(packMin, e8.player.speed);
+  if ((e8.player.bumpLock || 0) > 0) everLock = true;
+  if (Math.abs(e8.playerX) > 1) offTrack = true;
+}
+check(packBefore >= 300, `pack-steer cruise before contact (got ${packBefore})`);
+check(!offTrack, "pack-steer stayed on the asphalt");
+check(everLock, "steering into a rival fired a hit");
+check(kmh(packMin) <= packBefore - 40, `steering into the pack costs real speed (${packBefore} → ${kmh(packMin)})`);
+
 if (fail.length) {
   console.log(fail.length + " gates failed");
   process.exit(1);
