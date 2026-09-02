@@ -168,41 +168,74 @@ class App {
       for (const key of this._pointers.values()) {
         if (key in held) held[key] = true;
       }
+      const wasUp = this.pad.up;
       this.pad.up = held.up;
       this.pad.down = held.down;
       this.pad.left = held.left;
       this.pad.right = held.right;
       this.pad.nitro = held.nitro;
       if (held.up) this.goLatch = true;
-      if (held.down) this.goLatch = false;
+      else if (held.down) this.goLatch = false;
+      else if (wasUp && !held.up && this.engine.countdown <= 0) this.goLatch = false;
       document.querySelectorAll("[data-hold]").forEach((el) => {
         el.classList.toggle("held", !!held[el.dataset.hold]);
       });
       this.engine.setKeys(this.driveKeys());
     };
-    const down = (e) => {
+    this._syncPads = syncPads;
+
+    const press = (id, key) => {
+      if (!id || !key) return;
+      const fresh = !this._pointers.has(id);
+      this._pointers.set(id, key);
+      syncPads();
+      if (fresh && key === "nitro") this.engine.tryNitro?.();
+      queueMicrotask(() => this.audio.unlock());
+    };
+    const release = (id) => {
+      if (!id || !this._pointers.has(id)) return;
+      this._pointers.delete(id);
+      syncPads();
+    };
+
+    const onPointerDown = (e) => {
       if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
       if (e.cancelable) e.preventDefault();
       const key = e.currentTarget.dataset.hold;
-      this._pointers.set(e.pointerId, key);
+      press(`p${e.pointerId}`, key);
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
-      syncPads();
-      if (key === "nitro") this.engine.tryNitro?.();
-      queueMicrotask(() => this.audio.unlock());
     };
-    const up = (e) => {
-      if (!this._pointers.has(e.pointerId)) return;
-      this._pointers.delete(e.pointerId);
-      syncPads();
+    const onPointerUp = (e) => {
+      release(`p${e.pointerId}`);
     };
+    const onLostCapture = (e) => {
+      if (e.buttons) return;
+      release(`p${e.pointerId}`);
+    };
+    const onTouchStart = (e) => {
+      if (e.cancelable) e.preventDefault();
+      const key = e.currentTarget.dataset.hold;
+      for (const t of e.changedTouches) press(`t${t.identifier}`, key);
+    };
+    const onTouchEnd = (e) => {
+      if (e.cancelable) e.preventDefault();
+      for (const t of e.changedTouches) release(`t${t.identifier}`);
+    };
+
     document.querySelectorAll("[data-hold]").forEach((el) => {
-      el.addEventListener("pointerdown", down, { passive: false });
-      el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
+      el.addEventListener("pointerdown", onPointerDown, { passive: false });
+      el.addEventListener("pointerup", onPointerUp);
+      el.addEventListener("pointercancel", onPointerUp);
+      el.addEventListener("lostpointercapture", onLostCapture);
+      el.addEventListener("touchstart", onTouchStart, { passive: false });
+      el.addEventListener("touchend", onTouchEnd, { passive: false });
+      el.addEventListener("touchcancel", onTouchEnd, { passive: false });
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
-    addEventListener("pointerup", up, true);
-    addEventListener("pointercancel", up, true);
+    addEventListener("pointerup", onPointerUp, true);
+    addEventListener("pointercancel", onPointerUp, true);
+    addEventListener("touchend", onTouchEnd, { capture: true, passive: false });
+    addEventListener("touchcancel", onTouchEnd, { capture: true, passive: false });
   }
 
   driveKeys() {
@@ -227,10 +260,21 @@ class App {
 
   clearInput() {
     this.kb.up = this.kb.down = this.kb.left = this.kb.right = this.kb.nitro = false;
+    if (this.screen === "race" && this._pointers?.size) {
+      this._syncPads?.();
+      if (this.engine.countdown > 0) return;
+      if (![...this._pointers.values()].includes("up")) this.goLatch = false;
+      return;
+    }
     this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
+    if (this.engine.countdown > 0) {
+      this._syncPads?.();
+      return;
+    }
     this.goLatch = false;
     this._pointers?.clear();
     document.querySelectorAll(".pad.held").forEach((el) => el.classList.remove("held"));
+    this.engine.setKeys(this.driveKeys());
   }
 
   onKey(e, down) {
