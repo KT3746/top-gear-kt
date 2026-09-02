@@ -1556,10 +1556,11 @@ export class GameEngine {
       }
       if (p1.y < maxY) maxY = p1.y;
     }
-    if (maxY > h * 0.38) {
+    const horizon = h * 0.545;
+    if (maxY > horizon + 4) {
       const pal = lut[lutMax];
       ctx.fillStyle = pal.grass1;
-      ctx.fillRect(0, h * 0.36, w, Math.max(8, maxY - h * 0.36));
+      ctx.fillRect(0, horizon, w, maxY - horizon);
     }
 
     for (let n = spriteUntil; n >= 0; n--) {
