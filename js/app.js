@@ -185,16 +185,18 @@ class App {
       queueMicrotask(() => this.audio.unlock());
     };
     const up = (e) => {
+      if (!this._pointers.has(e.pointerId)) return;
       this._pointers.delete(e.pointerId);
       syncPads();
     };
     document.querySelectorAll("[data-hold]").forEach((el) => {
-      el.addEventListener("pointerdown", down);
+      el.addEventListener("pointerdown", down, { passive: false });
       el.addEventListener("pointerup", up);
       el.addEventListener("pointercancel", up);
-      el.addEventListener("lostpointercapture", up);
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
+    addEventListener("pointerup", up, true);
+    addEventListener("pointercancel", up, true);
   }
 
   driveKeys() {
@@ -709,33 +711,38 @@ class App {
       <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Tempo</th></tr>
       ${rows.map((r) => `<tr class="${r.you ? "you" : ""}"><td>${r.place}</td><td>${r.name}</td><td>${r.car || ""}</td><td>${fmt(r.time || 0)}</td></tr>`).join("")}
     `;
-    if (this.cup) {
-      this.cup.lastResults = list;
-      if (!qualified) {
-        this.cup.phase = "failed";
+    try {
+      if (this.cup) {
+        this.cup.lastResults = list;
+        if (!qualified) {
+          this.cup.phase = "failed";
+          this.persistCup();
+          $("results-title").textContent = "Não se classificou";
+          $("results-sub").textContent = `Você chegou em ${you.place}º. Precisa do ${QUALIFY}º ou melhor para avançar. +$${prize}`;
+          $("results-table").innerHTML = table;
+          if (nextBtn) nextBtn.textContent = "Tentar de novo";
+          this.show("results");
+          return;
+        }
+        list.forEach((r) => {
+          this.cup.points[r.name] = (this.cup.points[r.name] || 0) + (POINTS[r.place - 1] || 0);
+        });
+        this.cup.completed += 1;
+        this.cup.index = this.cup.completed - 1;
+        this.cup.phase = "standings";
+        this.cup.done = this.cup.completed >= TRACKS.length;
         this.persistCup();
-        $("results-title").textContent = "Não se classificou";
-        $("results-sub").textContent = `Você chegou em ${you.place}º. Precisa do ${QUALIFY}º ou melhor para avançar. +$${prize}`;
-        $("results-table").innerHTML = table;
-        if (nextBtn) nextBtn.textContent = "Tentar de novo";
-        this.show("results");
-        return;
+      } else {
+        save(this.save);
       }
-      list.forEach((r) => {
-        this.cup.points[r.name] = (this.cup.points[r.name] || 0) + (POINTS[r.place - 1] || 0);
-      });
-      this.cup.completed += 1;
-      this.cup.index = this.cup.completed - 1;
-      this.cup.phase = "standings";
-      this.cup.done = this.cup.completed >= TRACKS.length;
-      this.persistCup();
-    } else {
-      save(this.save);
+      $("results-title").textContent = you.place === 1 ? "Vitória" : "Chegada";
+      $("results-sub").textContent = `${you.place}º lugar · +$${prize} · ${fmt(you.time || 0)}`;
+      $("results-table").innerHTML = table;
+      if (nextBtn) nextBtn.textContent = "Continuar";
+    } catch (_) {
+      if ($("results-title")) $("results-title").textContent = "Chegada";
+      if ($("results-sub")) $("results-sub").textContent = `${you.place}º lugar`;
     }
-    $("results-title").textContent = you.place === 1 ? "Vitória" : "Chegada";
-    $("results-sub").textContent = `${you.place}º lugar · +$${prize} · ${fmt(you.time || 0)}`;
-    $("results-table").innerHTML = table;
-    if (nextBtn) nextBtn.textContent = "Continuar";
     this.show("results");
   }
 

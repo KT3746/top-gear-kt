@@ -591,6 +591,9 @@ body.racing .top-tools {
   font-size: 18px;
   box-shadow: none;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .pad.go {
@@ -648,7 +651,7 @@ body.racing .top-tools {
   .grid-4, .grid-tracks, .shop-grid { grid-template-columns: 1fr 1fr; }
   .hud-card strong { font-size: 28px; }
   .speedo strong { font-size: 56px; }
-  #minimap { width: 148px; height: 148px; }
+  #minimap { width: 168px; height: 168px; }
   body.racing .top-tools {
     right: calc(max(12px, env(safe-area-inset-right)) + 142px);
   }
@@ -685,7 +688,7 @@ body.modo-celular.racing .speedo strong { font-size: 36px; line-height: 0.9; }
 body.modo-celular.racing .bars { width: 100%; }
 body.modo-celular.racing .hud-card { padding: 4px 10px; min-width: 72px; }
 body.modo-celular.racing .hud-card strong { font-size: 24px; }
-body.modo-celular.racing #minimap { width: 148px; height: 148px; }
+body.modo-celular.racing #minimap { width: 168px; height: 168px; }
 body.modo-celular.racing .hud-mid { top: max(10px, env(safe-area-inset-top)); }
 body.modo-celular.racing .top-tools {
   top: max(8px, env(safe-area-inset-top));
