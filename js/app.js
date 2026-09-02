@@ -84,8 +84,7 @@ class App {
     this.kb = { up: false, down: false, left: false, right: false, nitro: false };
     this.pad = { up: false, down: false, left: false, right: false, nitro: false };
     this.goLatch = false;
-    this._touches = [];
-    this._touchHold = { up: false, down: false, left: false, right: false, nitro: false };
+    this._pointers = new Map();
     this.screen = "title";
     this.carId = this.save.carId;
     this.trackId = TRACKS[0].id;
@@ -137,17 +136,9 @@ class App {
     });
     if (this.phone) {
       this.bindPads();
-      const trackTouches = (e) => {
-        this._touches = Array.from(e.touches || []).map((t) => ({ x: t.clientX, y: t.clientY }));
-        if (this.screen === "race") this.applyTouchPads();
-      };
-      addEventListener("touchstart", trackTouches, { passive: false, capture: true });
       addEventListener("touchmove", (e) => {
-        trackTouches(e);
         if (this.screen === "race" || !e.target.closest?.(".screen")) e.preventDefault();
       }, { passive: false });
-      addEventListener("touchend", trackTouches, { passive: true, capture: true });
-      addEventListener("touchcancel", trackTouches, { passive: true, capture: true });
       addEventListener("gesturestart", (e) => e.preventDefault());
       addEventListener("orientationchange", () => {
         this.syncRotate();
@@ -165,71 +156,45 @@ class App {
   }
 
   bindPads() {
-    document.querySelectorAll("[data-hold]").forEach((el) => {
-      const key = el.dataset.hold;
-      const press = (e) => {
-        if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
-        if (e.cancelable) e.preventDefault();
-        if (e.pointerType === "touch" || e.type === "touchstart") this._touchHold[key] = true;
-        try { if (e.pointerId != null) el.setPointerCapture(e.pointerId); } catch (_) {}
-        this.pad[key] = true;
-        if (key === "up") this.goLatch = true;
-        if (key === "down") this.goLatch = false;
-        el.classList.add("held");
-        this.engine.setKeys(this.driveKeys());
-        queueMicrotask(() => this.audio.unlock());
-      };
-      const release = (e) => {
-        if (this._touchHold[key] && (e.pointerType === "mouse" || e.type === "mouseup" || (e.type === "pointerup" && e.pointerType !== "touch"))) {
-          return;
-        }
-        if (e.type === "pointerup" && e.pointerType === "touch") return;
-        if (e.cancelable) e.preventDefault();
-        if (e.type === "touchend" || e.type === "touchcancel") this._touchHold[key] = false;
-        this.pad[key] = false;
-        if (key === "up") this.goLatch = false;
-        el.classList.remove("held");
-        this.engine.setKeys(this.driveKeys());
-      };
-      el.addEventListener("pointerdown", press);
-      el.addEventListener("touchstart", press, { passive: false });
-      el.addEventListener("pointerup", release);
-      el.addEventListener("touchend", release, { passive: false });
-      el.addEventListener("pointercancel", (e) => {
-        if (e.pointerType === "touch") {
-          this.pad[key] = true;
-          this._touchHold[key] = true;
-          el.classList.add("held");
-          this.engine.setKeys(this.driveKeys());
-          return;
-        }
-        release(e);
+    this._pointers = new Map();
+    const syncPads = () => {
+      const held = { up: false, down: false, left: false, right: false, nitro: false };
+      for (const key of this._pointers.values()) {
+        if (key in held) held[key] = true;
+      }
+      this.pad.up = held.up;
+      this.pad.down = held.down;
+      this.pad.left = held.left;
+      this.pad.right = held.right;
+      this.pad.nitro = held.nitro;
+      if (held.up) this.goLatch = true;
+      if (held.down) this.goLatch = false;
+      document.querySelectorAll("[data-hold]").forEach((el) => {
+        el.classList.toggle("held", !!held[el.dataset.hold]);
       });
-      el.addEventListener("touchcancel", (e) => {
-        this._touchHold[key] = true;
-        this.pad[key] = true;
-        el.classList.add("held");
-        this.engine.setKeys(this.driveKeys());
-        if (e.cancelable) e.preventDefault();
-      }, { passive: false });
+      this.engine.setKeys(this.driveKeys());
+    };
+    const down = (e) => {
+      if (e.pointerType === "mouse" && e.button != null && e.button !== 0) return;
+      if (e.cancelable) e.preventDefault();
+      const key = e.currentTarget.dataset.hold;
+      this._pointers.set(e.pointerId, key);
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+      syncPads();
+      if (key === "nitro") this.engine.tryNitro?.();
+      queueMicrotask(() => this.audio.unlock());
+    };
+    const up = (e) => {
+      this._pointers.delete(e.pointerId);
+      syncPads();
+    };
+    document.querySelectorAll("[data-hold]").forEach((el) => {
+      el.addEventListener("pointerdown", down);
+      el.addEventListener("pointerup", up);
+      el.addEventListener("pointercancel", up);
+      el.addEventListener("lostpointercapture", up);
       el.addEventListener("contextmenu", (e) => e.preventDefault());
     });
-  }
-
-  applyTouchPads() {
-    if (!this.phone || this.screen !== "race") return;
-    const touches = this._touches || [];
-    if (!touches.length) return;
-    document.querySelectorAll("[data-hold]").forEach((el) => {
-      const key = el.dataset.hold;
-      const r = el.getBoundingClientRect();
-      const hit = touches.some((t) => t.x >= r.left && t.x <= r.right && t.y >= r.top && t.y <= r.bottom);
-      this.pad[key] = hit;
-      el.classList.toggle("held", hit);
-      if (hit && key === "up") this.goLatch = true;
-      if (hit && key === "down") this.goLatch = false;
-    });
-    this.engine.setKeys(this.driveKeys());
   }
 
   driveKeys() {
@@ -256,6 +221,7 @@ class App {
     this.kb.up = this.kb.down = this.kb.left = this.kb.right = this.kb.nitro = false;
     this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
     this.goLatch = false;
+    this._pointers?.clear();
     document.querySelectorAll(".pad.held").forEach((el) => el.classList.remove("held"));
   }
 
@@ -732,27 +698,30 @@ class App {
   }
 
   finish(results) {
-    const you = results.find((r) => r.you);
+    const list = Array.isArray(results) ? results : [];
+    const you = list.find((r) => r.you) || { place: list.length || 8, time: this.engine.time || 0 };
     const prize = PRIZE[(you.place - 1)] || 80;
     this.save.money += prize;
     const nextBtn = document.querySelector('[data-action="results-next"]');
     const qualified = you.place <= QUALIFY;
+    const rows = list.length ? list : [{ place: you.place, name: "Você", car: "", time: you.time, you: true }];
+    const table = `
+      <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Tempo</th></tr>
+      ${rows.map((r) => `<tr class="${r.you ? "you" : ""}"><td>${r.place}</td><td>${r.name}</td><td>${r.car || ""}</td><td>${fmt(r.time || 0)}</td></tr>`).join("")}
+    `;
     if (this.cup) {
-      this.cup.lastResults = results;
+      this.cup.lastResults = list;
       if (!qualified) {
         this.cup.phase = "failed";
         this.persistCup();
         $("results-title").textContent = "Não se classificou";
         $("results-sub").textContent = `Você chegou em ${you.place}º. Precisa do ${QUALIFY}º ou melhor para avançar. +$${prize}`;
-        $("results-table").innerHTML = `
-          <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Tempo</th></tr>
-          ${results.map((r) => `<tr class="${r.you ? "you" : ""}"><td>${r.place}</td><td>${r.name}</td><td>${r.car}</td><td>${fmt(r.time)}</td></tr>`).join("")}
-        `;
+        $("results-table").innerHTML = table;
         if (nextBtn) nextBtn.textContent = "Tentar de novo";
         this.show("results");
         return;
       }
-      results.forEach((r) => {
+      list.forEach((r) => {
         this.cup.points[r.name] = (this.cup.points[r.name] || 0) + (POINTS[r.place - 1] || 0);
       });
       this.cup.completed += 1;
@@ -764,11 +733,8 @@ class App {
       save(this.save);
     }
     $("results-title").textContent = you.place === 1 ? "Vitória" : "Chegada";
-    $("results-sub").textContent = `${you.place}º lugar · +$${prize} · ${fmt(you.time)}`;
-    $("results-table").innerHTML = `
-      <tr><th>#</th><th>Piloto</th><th>Carro</th><th>Tempo</th></tr>
-      ${results.map((r) => `<tr class="${r.you ? "you" : ""}"><td>${r.place}</td><td>${r.name}</td><td>${r.car}</td><td>${fmt(r.time)}</td></tr>`).join("")}
-    `;
+    $("results-sub").textContent = `${you.place}º lugar · +$${prize} · ${fmt(you.time || 0)}`;
+    $("results-table").innerHTML = table;
     if (nextBtn) nextBtn.textContent = "Continuar";
     this.show("results");
   }
@@ -830,7 +796,6 @@ class App {
       this.syncRotate();
       this._wasRotate = rotateBlock;
     }
-    if (this.phone && this.screen === "race") this.applyTouchPads();
     this.engine.setKeys(this.driveKeys());
     const liveMenu = this.screen === "title" || this.screen === "cars" || this.screen === "mode" || this.screen === "tracks" || this.screen === "howto" || this.screen === "shop" || this.screen === "standings" || this.screen === "results";
     if (!rotateBlock && (this.screen === "race" || liveMenu)) {

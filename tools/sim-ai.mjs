@@ -102,6 +102,7 @@ for (let i = 0; i < 900; i++) {
     console.log(`t=${t.toFixed(1)} YOU ${you} P${place}/8 nitroBurst=${engine.player.nitroBurst.toFixed(2)} nearby=${nearby} ai=${aiK.join(",")}`);
   }
 }
+check(!engine.finished, "race still going at 20s (does not quit to title)");
 
 check(speedAt05 >= 40, `accel in 0.5s (got ${speedAt05} km/h)`);
 check(nitroPeak >= cruise + 20, `nitro goes above cruise ${cruise} (peak ${nitroPeak})`);
