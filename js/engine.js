@@ -655,7 +655,7 @@ export class GameEngine {
   tryNitro() {
     const p = this.player;
     if (!p || this.mode !== "race" || this.finished) return;
-    const off = Math.abs(this.playerX) > 1.16;
+    const off = Math.abs(this.playerX) > 1.05;
     if (p._nitroLatch || p.nitroBurst > 0 || p.nitroCharges <= 0 || p.fuel <= 0 || off) return;
     p.nitroCharges -= 1;
     p.nitroBurst = NITRO_BURST * (p.spec.nitroTank || 1);
@@ -684,7 +684,7 @@ export class GameEngine {
       return;
     }
     if (this.countdown > 0) {
-      this.countdown = Math.max(0, this.countdown - Math.min(0.25, rawDt > 0 ? rawDt : dt));
+      this.countdown = Math.max(0, this.countdown - Math.min(0.25, dt));
       this.drivePlayer(dt);
       this.driveAI(dt);
       this.simulateWorld(dt, true, true);
@@ -712,7 +712,7 @@ export class GameEngine {
     const down = this.keys.down;
     const left = this.keys.left;
     const right = this.keys.right;
-    const offAmt = Math.max(0, Math.abs(this.playerX) - 1.16);
+    const offAmt = Math.max(0, Math.abs(this.playerX) - 1.02);
     const off = offAmt > 0.03;
     const wantNitro = !!this.keys.nitro;
     const canFire = wantNitro && !p._nitroLatch && p.nitroBurst <= 0 && p.nitroCharges > 0 && p.fuel > 0 && !off;
@@ -738,7 +738,7 @@ export class GameEngine {
     const bend = clamp(Math.abs(look.curve || 0) / 5.0, 0, 1);
     if (!boost) max *= 1 - bend * (0.08 / Math.max(0.72, grip));
 
-    const accel = 2100 * p.spec.accel * (boost ? 1.7 : 1) * (off ? 0.42 : 1);
+    const accel = 1800 * p.spec.accel * (boost ? 1.6 : 1) * (off ? 0.55 : 1);
     if (up) p.speed += accel * dt;
     else p.speed -= (off ? 780 : 520) * dt;
     if (down) p.speed -= 3800 * dt;
@@ -755,12 +755,24 @@ export class GameEngine {
     this.steer = lerp(this.steer, want, (off ? 2.4 : 4.2) * dt);
     const turn = (0.42 + grip * 0.38) * (0.28 + 0.72 * speedPct);
     this.playerX += this.steer * turn * dt;
-    this.playerX += (-look.curve * (off ? 0.07 : 0.040) * speedPct) * dt;
+    this.playerX += (-look.curve * (off ? 0.04 : 0.040) * speedPct) * dt;
     if (!want && (this.sideShock || 0) <= 0) {
-      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.035, -0.22, 0.22), (off ? 0.32 : 0.85) * dt);
+      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.035, -0.22, 0.22), (off ? 1.8 : 0.85) * dt);
     }
     if (this.sideShock > 0) this.sideShock = Math.max(0, this.sideShock - dt);
-    if (off) this.playerX -= Math.sign(this.playerX) * 0.55 * dt;
+    const tooWide = Math.abs(this.playerX) > 0.88;
+    if (tooWide && want && Math.sign(want) === Math.sign(this.playerX)) {
+      this.steer = lerp(this.steer, 0, 8 * dt);
+    }
+    if (off) this._recovering = true;
+    if (this._recovering) {
+      this.playerX = lerp(this.playerX, 0, 1 - Math.exp(-4.4 * dt));
+      if (Math.abs(this.playerX) < 0.50) this._recovering = false;
+      if (this.toast !== "NITRO") {
+        this.toast = "DE VOLTA À PISTA";
+        this.toastT = 0.55;
+      }
+    }
     this.slip = lerp(this.slip, this.steer * speedPct * (off ? 1.35 : 0.85), 3.6 * dt);
     const leanWant = want * (0.72 + 0.28 * speedPct) + this.steer * 0.45;
     this.lean = clamp(lerp(this.lean || 0, leanWant, 1 - Math.exp(-12 * dt)), -1, 1);
@@ -784,9 +796,11 @@ export class GameEngine {
         this.toastT = 0;
       }
     }
-    p.fuel = Math.max(0, p.fuel - dt * (0.0078 + speedPct * 0.0064) / p.spec.fuel);
+    if (p.speed > 80) {
+      p.fuel = Math.max(0, p.fuel - dt * (0.0078 + speedPct * 0.0064) / p.spec.fuel);
+    }
     if (off) {
-      if (this.toast !== "NITRO") {
+      if (this.toast !== "NITRO" && this.toast !== "DE VOLTA À PISTA") {
         this.toast = "FORA DA PISTA";
         this.toastT = 0.3;
       }
@@ -844,7 +858,7 @@ export class GameEngine {
       else if (slotErr < -2200) target *= 1.10;
       else if (slotErr < -900) target *= 1.05;
 
-      target = clamp(target, ref * 0.70, Math.min(ref * 1.14, cap));
+      target = clamp(target, ref * 0.72, Math.min(ref * 1.10, cap));
 
       if (c.speed < target) c.speed += 3400 * c.spec.accel * (1 - corner * 0.35) * dt;
       else c.speed -= (420 + corner * 920) * dt;
@@ -912,7 +926,7 @@ export class GameEngine {
     } else {
       p._prevZ = p.z;
     }
-    this.playerX = clamp(this.playerX, -1.28, 1.28);
+    this.playerX = clamp(this.playerX, -1.08, 1.08);
     p.x = this.playerX;
     this.position = wrapZ(p.z - PLAYER_Z, len);
     if (!freezeAI) {
@@ -934,7 +948,7 @@ export class GameEngine {
     if (!this.track) return;
     const len = this.track.length;
     const follow = 1 - Math.exp(-(this._phone || this._ios ? 12 : 18) * dt);
-    this.camX = lerp(this.camX, this.playerX, follow);
+    this.camX = lerp(this.camX, clamp(this.playerX, -0.92, 0.92), follow);
     const seg = this.findSeg(this.position);
     const t = this.percent(this.position);
     const wantY = CAM_H + lerp(seg.p1.y, seg.p2.y, t);
@@ -1038,7 +1052,7 @@ export class GameEngine {
     const s = CAR_SCALE_AT_PLAYER * (h / 720);
     const st = this.lean || this.player?.steer || 0;
     const dx = this._playerDrawX != null ? this._playerDrawX : this.playerDrawX(w, h, st);
-    return this.spriteBox(dx, h * 0.86, s, st);
+    return this.spriteBox(dx, h * 0.84, s, st);
   }
 
   spriteHitsPlayer(car) {
@@ -1073,7 +1087,7 @@ export class GameEngine {
 
   shovePlayer(dx) {
     if (!this.player) return;
-    this.playerX = clamp(this.playerX + dx, -1.28, 1.28);
+    this.playerX = clamp(this.playerX + dx, -1.08, 1.08);
     this.player.x = this.playerX;
   }
 
@@ -1616,7 +1630,7 @@ export class GameEngine {
       return {
         z: PLAYER_Z,
         destX: w / 2,
-        destY: h * 0.86,
+        destY: h * 0.84,
         s: CAR_SCALE_AT_PLAYER * (h / 720),
         c,
         clip: h,

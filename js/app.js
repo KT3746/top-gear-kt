@@ -92,6 +92,8 @@ class App {
     this.cup = null;
     this.afterShop = "mode";
     this.menuIndex = 0;
+    this._portraitOk = false;
+    this._now = 0;
     document.body.classList.add(this.phone ? "modo-celular" : "modo-pc");
     this.engine.setPhone(this.phone);
     this._immersive = false;
@@ -108,6 +110,10 @@ class App {
       if (this.screen === "race") return;
       this.clearInput();
     });
+    addEventListener("visibilitychange", () => {
+      this._now = performance.now();
+    });
+    this.guardNavigation();
     try {
       if (new URLSearchParams(location.search).get("v")) window.__relampago = this;
     } catch (_) {}
@@ -434,7 +440,34 @@ class App {
   }
 
   isRotateBlocking() {
-    return this.phone && this.screen === "race" && matchMedia("(orientation: portrait)").matches;
+    if (!this.phone || this.screen !== "race" || this._portraitOk) return false;
+    return matchMedia("(orientation: portrait)").matches;
+  }
+
+  guardNavigation() {
+    const eatNav = (e) => {
+      const a = e.target?.closest?.("a");
+      if (this.screen === "race" && a) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+    };
+    document.addEventListener("click", eatNav, true);
+    document.addEventListener("auxclick", eatNav, true);
+    const view = $("view");
+    if (view) {
+      const eat = (e) => {
+        if (this.screen !== "race") return;
+        e.preventDefault();
+        if (e.stopPropagation) e.stopPropagation();
+        try { view.focus({ preventScroll: true }); } catch (_) {}
+      };
+      view.addEventListener("click", eat);
+      view.addEventListener("auxclick", eat);
+      view.addEventListener("dblclick", eat);
+    }
+    addEventListener("beforeunload", () => {}, { capture: true });
   }
 
   syncRotate() {
@@ -449,6 +482,11 @@ class App {
   }
 
   act(name) {
+    if (name === "portrait-ok") {
+      this._portraitOk = true;
+      this.syncRotate();
+      return;
+    }
     if (name === "play") {
       this.show("cars");
       this.preview("praia");
@@ -794,10 +832,19 @@ class App {
   }
 
   loop(now) {
+    if (document.hidden) {
+      this._now = now;
+      requestAnimationFrame((t) => this.loop(t));
+      return;
+    }
     const last = this._now || now;
     const rawDt = (now - last) / 1000;
-    const dt = Math.min(this.phone ? 1 / 30 : 0.05, rawDt);
     this._now = now;
+    if (rawDt > 0.25) {
+      requestAnimationFrame((t) => this.loop(t));
+      return;
+    }
+    const dt = Math.min(1 / 20, Math.max(0, rawDt));
     const rotateBlock = this.isRotateBlocking();
     if (rotateBlock !== this._wasRotate) {
       this.syncRotate();
@@ -806,7 +853,7 @@ class App {
     this.engine.setKeys(this.driveKeys());
     const liveMenu = this.screen === "title" || this.screen === "cars" || this.screen === "mode" || this.screen === "tracks" || this.screen === "howto" || this.screen === "shop" || this.screen === "standings" || this.screen === "results";
     if (!rotateBlock && (this.screen === "race" || liveMenu)) {
-      this.engine.update(dt, rawDt);
+      this.engine.update(dt, dt);
     }
     this.engine.render();
     if (this.screen === "race") this.paintHud(rotateBlock);
