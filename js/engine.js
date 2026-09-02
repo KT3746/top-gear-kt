@@ -281,7 +281,7 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   ctx.scale(scale, scale * 1.22);
   ctx.rotate(st * 0.62);
   ctx.transform(1, 0, -st * 0.28, 1, 0, 0);
-  ctx.translate(st * 18, Math.abs(st) * 6);
+  ctx.translate(st * 8, Math.abs(st) * 4);
   const body = car.color;
   const accent = car.accent;
   const type = car.silhouette;
@@ -1580,7 +1580,11 @@ export class GameEngine {
       const st = s.human
         ? clamp(s.c.steer || 0, -1, 1)
         : clamp(s.c.steer || 0, -0.28, 0.28);
-      drawCar(this.ctx, s.destX, s.destY, s.s, s.c.car, st, nitro);
+      let dx = s.destX;
+      if (s.human) {
+        dx = clamp(s.destX - st * Math.min(52, 16 * s.s), 96, w - 96);
+      }
+      drawCar(this.ctx, dx, s.destY, s.s, s.c.car, st, nitro);
     };
     for (const s of sprites) {
       if (s.human) continue;
