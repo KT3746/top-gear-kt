@@ -76,6 +76,7 @@ export class AudioBus {
 
   ui() { this.beep(520, 0.05, "sine", 0.07); }
   ok() { this.beep(620, 0.1, "triangle", 0.09); }
+  pickup() { this.beep(540, 0.05, "sine", 0.025); }
   go() { this.beep(196, 0.22, "sine", 0.08); this.beep(262, 0.2, "triangle", 0.06); }
   count() { this.beep(196, 0.1, "sine", 0.07); }
   bump() { this.noise(0.14, 0.1, 420); }
