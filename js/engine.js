@@ -381,14 +381,50 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
     ctx.fillRect(22, -26, 4, 8);
   }
 
-  ctx.fillStyle = nitro ? "#7cf6ff" : "#2a2a30";
+  const boost = typeof nitro === "number" ? nitro : (nitro ? 1 : 0);
+  ctx.fillStyle = boost > 0.05 ? "#b8fff8" : "#2a2a30";
   ctx.fillRect(-18, 16, 8, 5);
   ctx.fillRect(10, 16, 8, 5);
-  if (nitro) {
-    ctx.fillStyle = "rgba(80, 230, 255, 0.7)";
-    ctx.beginPath(); ctx.moveTo(-16, 20); ctx.lineTo(0, 52); ctx.lineTo(16, 20); ctx.fill();
-    ctx.fillStyle = "rgba(255, 200, 80, 0.5)";
-    ctx.beginPath(); ctx.moveTo(-8, 20); ctx.lineTo(0, 40); ctx.lineTo(8, 20); ctx.fill();
+  if (boost > 0.05) {
+    const t = (typeof performance !== "undefined" ? performance.now() : 0) * 0.018;
+    const flick = (0.72 + 0.28 * Math.sin(t * 2.7)) * clamp(boost, 0, 1);
+    const len = (42 + 22 * (0.55 + 0.45 * Math.sin(t * 3.4))) * flick;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = `rgba(40, 210, 255, ${0.22 * flick})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 30, 46, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (const ox of [-14, 14]) {
+      const wob = Math.sin(t * 4.2 + ox) * 4;
+      ctx.fillStyle = `rgba(60, 200, 255, ${0.45 * flick})`;
+      ctx.beginPath();
+      ctx.moveTo(ox - 11, 18);
+      ctx.quadraticCurveTo(ox - 18 * flick + wob, 24 + len * 0.45, ox + wob * 0.4, 22 + len);
+      ctx.quadraticCurveTo(ox + 18 * flick + wob, 24 + len * 0.45, ox + 11, 18);
+      ctx.fill();
+      ctx.fillStyle = `rgba(200, 255, 255, ${0.55 * flick})`;
+      ctx.beginPath();
+      ctx.moveTo(ox - 5, 18);
+      ctx.lineTo(ox + wob * 0.3, 18 + len * 0.62);
+      ctx.lineTo(ox + 5, 18);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * flick})`;
+      ctx.beginPath();
+      ctx.moveTo(ox - 2.2, 18);
+      ctx.lineTo(ox, 18 + len * 0.38);
+      ctx.lineTo(ox + 2.2, 18);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255, 160, 50, ${0.42 * flick})`;
+      ctx.beginPath();
+      ctx.arc(ox + wob * 0.5, 20 + len * 0.78, 3.2 + flick, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255, 240, 180, ${0.35 * flick})`;
+      ctx.beginPath();
+      ctx.arc(ox - wob, 19 + len * 0.55, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -436,6 +472,7 @@ export class GameEngine {
     this.slip = 0;
     this.lean = 0;
     this.sideShock = 0;
+    this.hitShake = 0;
     this.fovKick = 0;
     this.time = 0;
     this.lapTime = 0;
@@ -588,6 +625,7 @@ export class GameEngine {
     this.slip = 0;
     this.lean = 0;
     this.sideShock = 0;
+    this.hitShake = 0;
     this.time = 0;
     this.lapTime = 0;
     this.bestLap = null;
@@ -761,6 +799,7 @@ export class GameEngine {
       this.playerX = lerp(this.playerX, clamp(-look.curve * 0.035, -0.22, 0.22), (off ? 1.8 : 0.85) * dt);
     }
     if (this.sideShock > 0) this.sideShock = Math.max(0, this.sideShock - dt);
+    if (this.hitShake > 0) this.hitShake = Math.max(0, this.hitShake - dt * 2.8);
     const tooWide = Math.abs(this.playerX) > 0.88;
     if (tooWide && want && Math.sign(want) === Math.sign(this.playerX)) {
       this.steer = lerp(this.steer, 0, 8 * dt);
@@ -782,7 +821,7 @@ export class GameEngine {
     if (p.nitroBurst > 0) p.nitroBurst = Math.max(0, p.nitroBurst - dt);
     if (boost) {
       p.fuel = Math.max(0, p.fuel - dt * 0.05);
-      this.fovKick = lerp(this.fovKick, 1, 6 * dt);
+      this.fovKick = lerp(this.fovKick, 1, 8 * dt);
       if (p.nitroBurst > 0) {
         this.toast = "NITRO";
         this.toastT = 0.2;
@@ -1145,7 +1184,7 @@ export class GameEngine {
     if ((p.bumpLock || 0) > 0) return;
     p.speed = Math.max(0, p.speed * factor);
     p.speedAim = p.speed;
-    p.bumpLock = 0.55;
+    p.bumpLock = 0.38;
   }
 
   queueSlow(car, factor) {
@@ -1193,50 +1232,54 @@ export class GameEngine {
       const rel = (p.speed || 0) - (c.speed || 0);
       const firstHit = (p.bumpLock || 0) <= 0;
       if (firstHit) {
-        const rear = dz > 35 && dz < CAR_HALF_L * 1.55 && adx < 0.30;
-        const nose = dz < -35 && dz > -CAR_HALF_L * 1.55 && adx < 0.30;
-        let pFactor = 0.92;
-        let cFactor = 0.92;
+        // Top Gear–style: snappy bounce, clear rear vs side.
+        const rear = dz > 28 && dz < CAR_HALF_L * 1.7 && adx < 0.34;
+        const nose = dz < -28 && dz > -CAR_HALF_L * 1.7 && adx < 0.34;
+        let pFactor = 0.86;
+        let cFactor = 0.90;
         if (rear) {
-          pFactor = rel > 50 ? 0.78 : 0.86;
-          cFactor = 0.94;
+          pFactor = rel > 40 ? 0.64 : 0.74;
+          cFactor = 0.97;
         } else if (nose) {
-          pFactor = 0.90;
-          cFactor = rel < -50 ? 0.76 : 0.86;
+          pFactor = 0.88;
+          cFactor = rel < -40 ? 0.62 : 0.74;
         } else {
-          pFactor = 0.94;
-          cFactor = 0.94;
+          pFactor = 0.82;
+          cFactor = 0.86;
         }
         this.hitPlayer(pFactor);
         this.queueSlow(c, cFactor);
+        this.hitShake = Math.max(this.hitShake || 0, rear || nose ? 0.42 : 0.55);
         if (rear) {
-          this.shovePlayer(away * 0.05);
-          this.shiftAI(c, -away * 0.10, 48);
+          this.shovePlayer(away * 0.10);
+          this.shiftAI(c, -away * 0.22, 85);
+          this.steer = clamp((this.steer || 0) + away * 0.18, -1, 1);
         } else if (nose) {
-          this.shovePlayer(away * 0.07);
-          this.shiftAI(c, -away * 0.14, -32);
+          this.shovePlayer(away * 0.14);
+          this.shiftAI(c, -away * 0.28, -70);
+          this.steer = clamp((this.steer || 0) + away * 0.25, -1, 1);
         } else {
-          this.shovePlayer(away * 0.12);
-          this.shiftAI(c, -away * 0.18, 18);
-          this.steer = clamp((this.steer || 0) + away * 0.22, -1, 1);
-          this.lean = clamp((this.lean || 0) + away * 0.18, -0.72, 0.72);
-          this.sideShock = 0.40;
+          this.shovePlayer(away * 0.30);
+          this.shiftAI(c, -away * 0.48, 40);
+          this.steer = clamp((this.steer || 0) + away * 0.58, -1, 1);
+          this.lean = clamp((this.lean || 0) + away * 0.38, -0.72, 0.72);
+          this.sideShock = 0.62;
         }
         p.steer = this.lean;
         if (this.bumpCool <= 0) {
           this.audio.bump();
-          this.bumpCool = 0.28;
+          this.bumpCool = 0.22;
         }
       } else {
-        p.speed = Math.min(p.speed, (p.speedAim ?? p.speed) * 0.988);
+        p.speed = Math.min(p.speed, (p.speedAim ?? p.speed) * 0.975);
         p.speedAim = Math.min(p.speedAim ?? p.speed, p.speed);
-        this.shovePlayer(away * 0.012);
-        this.shiftAI(c, -away * 0.018, dz > 0 ? 6 : -6);
+        this.shovePlayer(away * 0.028);
+        this.shiftAI(c, -away * 0.04, dz > 0 ? 10 : -10);
       }
       this.unstickFromPlayer(c);
       if (this.overlapping(p, c)) {
         const side = Math.sign(c.x - this.playerX) || 1;
-        this.shiftAI(c, side * 0.10, 22);
+        this.shiftAI(c, side * 0.18, 36);
         this.unstickFromPlayer(c);
       }
     }
@@ -1467,22 +1510,48 @@ export class GameEngine {
     ctx.fillStyle = this._sunGrad;
     ctx.fillRect(0, 0, w, h * 0.62);
 
+    if ((this.hitShake || 0) > 0) {
+      const s = this.hitShake;
+      ctx.translate((Math.random() - 0.5) * 10 * s, (Math.random() - 0.5) * 6 * s);
+    }
+
     this.drawHills(w, h, def);
     this.drawRoad(w, h, def);
 
     if (this.fovKick > 0.05) {
-      ctx.fillStyle = `rgba(180, 230, 255, ${0.05 * this.fovKick})`;
+      const k = this.fovKick;
+      const t = this._frame || 0;
+      ctx.fillStyle = `rgba(90, 210, 255, ${0.08 * k})`;
       ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = `rgba(255,255,255,${0.08 * this.fovKick})`;
+      const rg = ctx.createRadialGradient(w * 0.5, h * 0.78, 8, w * 0.5, h * 0.72, h * 0.62);
+      rg.addColorStop(0, `rgba(255, 255, 255, ${0.16 * k})`);
+      rg.addColorStop(0.35, `rgba(80, 220, 255, ${0.08 * k})`);
+      rg.addColorStop(1, "rgba(0, 40, 80, 0)");
+      ctx.fillStyle = rg;
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = `rgba(200, 245, 255, ${0.14 * k})`;
       ctx.lineWidth = 2;
-      const lines = this._phone || this._ios ? 6 : 10;
+      const lines = this._phone || this._ios ? 8 : 14;
       for (let i = 0; i < lines; i++) {
-        const y = h * 0.55 + i * 18;
+        const drift = ((t * 7 + i * 37) % 40);
+        const y = h * 0.52 + i * 16 + drift * 0.35;
+        const spread = 36 + i * 38;
         ctx.beginPath();
-        ctx.moveTo(w * 0.5 - 40 - i * 40, y);
-        ctx.lineTo(w * 0.5 - 80 - i * 70, y + 16);
-        ctx.moveTo(w * 0.5 + 40 + i * 40, y);
-        ctx.lineTo(w * 0.5 + 80 + i * 70, y + 16);
+        ctx.moveTo(w * 0.5 - 28 - spread * 0.25, y);
+        ctx.lineTo(w * 0.5 - 70 - spread, y + 14 + (i % 3));
+        ctx.moveTo(w * 0.5 + 28 + spread * 0.25, y);
+        ctx.lineTo(w * 0.5 + 70 + spread, y + 14 + (i % 3));
+        ctx.stroke();
+      }
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 * k})`;
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        const y = h * 0.6 + ((t * 11 + i * 29) % 90);
+        ctx.beginPath();
+        ctx.moveTo(w * 0.5 - 12, y);
+        ctx.lineTo(w * 0.5 - 40 - i * 18, y + 22);
+        ctx.moveTo(w * 0.5 + 12, y);
+        ctx.lineTo(w * 0.5 + 40 + i * 18, y + 22);
         ctx.stroke();
       }
     }
@@ -1635,7 +1704,11 @@ export class GameEngine {
     sprites.sort((a, b) => b.z - a.z);
     const you = sprites.find((s) => s.human);
     const drawOne = (s) => {
-      const nitro = s.human && this.mode === "race" && s.c.nitroBurst > 0;
+      let nitro = 0;
+      if (s.human && this.mode === "race" && (s.c.nitroBurst || 0) > 0) {
+        const maxB = NITRO_BURST * (s.c.spec?.nitroTank || 1);
+        nitro = clamp((s.c.nitroBurst || 0) / Math.max(0.35, maxB), 0, 1);
+      }
       const st = s.human
         ? clamp(s.c.steer || 0, -1, 1)
         : clamp(s.c.steer || 0, -0.28, 0.28);
