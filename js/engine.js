@@ -1247,53 +1247,11 @@ export class GameEngine {
       if (!this.overlapping(p, c)) continue;
       const dz = wrapDist(c.z, p.z, len);
       const dx = this.playerX - c.x;
-      const adx = Math.abs(dx);
       const away = Math.sign(dx) || -1;
-      const rel = (p.speed || 0) - (c.speed || 0);
-      const firstHit = (p.bumpLock || 0) <= 0;
-      if (firstHit) {
-        // Soft early-game bump: separate cars, barely punish the player.
-        const rear = dz > 28 && dz < CAR_HALF_L * 1.7 && adx < 0.34;
-        const nose = dz < -28 && dz > -CAR_HALF_L * 1.7 && adx < 0.34;
-        let pFactor = 0.97;
-        let cFactor = 0.96;
-        if (rear) {
-          pFactor = 0.94;
-          cFactor = 0.98;
-        } else if (nose) {
-          pFactor = 0.96;
-          cFactor = 0.94;
-        }
-        this.hitPlayer(pFactor);
-        this.queueSlow(c, cFactor);
-        this.hitShake = Math.max(this.hitShake || 0, 0.18);
-        this.hitFlash = Math.max(this.hitFlash || 0, 0.20);
-        if (rear) {
-          this.shovePlayer(away * 0.06);
-          this.shiftAI(c, -away * 0.16, 55);
-        } else if (nose) {
-          this.shovePlayer(away * 0.07);
-          this.shiftAI(c, -away * 0.18, -40);
-        } else {
-          this.shovePlayer(away * 0.10);
-          this.shiftAI(c, -away * 0.22, 28);
-          // Do NOT yank steer/lean — that stole control and killed the fun.
-          this.sideShock = 0.12;
-        }
-        if (this.bumpCool <= 0) {
-          this.audio.bump();
-          this.bumpCool = 0.25;
-        }
-      } else {
-        // Gentle ongoing separation only
-        this.shiftAI(c, -away * 0.02, dz > 0 ? 6 : -6);
-      }
+      // No trombada: no speed loss, shake, flash, or bump sound.
+      // Only a tiny silent separation so sprites don't stay glued.
+      this.shiftAI(c, -away * 0.03, dz > 0 ? 8 : -8);
       this.unstickFromPlayer(c);
-      if (this.overlapping(p, c)) {
-        const side = Math.sign(c.x - this.playerX) || 1;
-        this.shiftAI(c, side * 0.12, 24);
-        this.unstickFromPlayer(c);
-      }
     }
     for (let i = 0; i < this.cars.length; i++) {
       for (let j = i + 1; j < this.cars.length; j++) {
