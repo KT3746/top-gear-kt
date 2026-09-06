@@ -279,9 +279,10 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(scale, scale * 1.22);
-  ctx.rotate(st * 0.62);
-  ctx.transform(1, 0, -st * 0.28, 1, 0, 0);
-  ctx.translate(st * 2, Math.abs(st) * 3);
+  // Ground-car turn: soft lean + yaw silhouette (not airplane bank).
+  ctx.rotate(st * 0.12);
+  ctx.transform(1, 0, -st * 0.10, 1, 0, 0);
+  ctx.translate(st * 5, Math.abs(st) * 1.2);
   const body = car.color;
   const accent = car.accent;
   const type = car.silhouette;
@@ -289,14 +290,14 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   const lo = shadeHex(body, -42);
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
-  ctx.ellipse(st * 6, 26, 58, 11, st * 0.18, 0, Math.PI * 2);
+  ctx.ellipse(st * 4, 26, 58, 11, st * 0.06, 0, Math.PI * 2);
   ctx.fill();
 
   const flare = type === "wide" ? 8 : type === "long" ? 2 : 0;
   const tail = type === "long" ? 6 : type === "box" ? -4 : 0;
   const spoiler = type === "gt" || type === "box";
-  const wdx = st * 12;
-  const yaw = st * 10;
+  const wdx = st * 7;
+  const yaw = st * 14;
 
   ctx.fillStyle = "#141418";
   ctx.fillRect(-48 - flare + wdx, 10, 22, 16);
@@ -773,9 +774,9 @@ export class GameEngine {
         this.toastT = 0.55;
       }
     }
-    this.slip = lerp(this.slip, this.steer * speedPct * (off ? 1.35 : 0.85), 3.6 * dt);
-    const leanWant = want * (0.72 + 0.28 * speedPct) + this.steer * 0.45;
-    this.lean = clamp(lerp(this.lean || 0, leanWant, 1 - Math.exp(-12 * dt)), -1, 1);
+    this.slip = lerp(this.slip, this.steer * speedPct * (off ? 1.15 : 0.7), 3.2 * dt);
+    const leanWant = want * (0.32 + 0.22 * speedPct) + this.steer * 0.28;
+    this.lean = clamp(lerp(this.lean || 0, leanWant, 1 - Math.exp(-7.5 * dt)), -0.72, 0.72);
     p.steer = this.lean;
 
     if (p.nitroBurst > 0) p.nitroBurst = Math.max(0, p.nitroBurst - dt);
@@ -1042,8 +1043,8 @@ export class GameEngine {
   playerDrawX(w, h, steer) {
     const st = clamp(steer || 0, -1, 1);
     const s = CAR_SCALE_AT_PLAYER * (h / 720);
-    const shift = st * (32 * s + 56);
-    return clamp(w / 2 - shift, w * 0.28, w * 0.72);
+    const shift = st * (16 * s + 26);
+    return clamp(w / 2 - shift, w * 0.34, w * 0.66);
   }
 
   playerScreenBox() {
