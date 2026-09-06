@@ -79,6 +79,12 @@ export class AudioBus {
   go() { this.beep(196, 0.22, "sine", 0.08); this.beep(262, 0.2, "triangle", 0.06); }
   count() { this.beep(196, 0.1, "sine", 0.07); }
   bump() { this.noise(0.14, 0.1, 420); }
+  nitro() {
+    this.beep(160, 0.12, "sawtooth", 0.07);
+    this.beep(280, 0.18, "square", 0.05);
+    this.beep(520, 0.1, "sine", 0.04);
+    this.noise(0.22, 0.09, 900);
+  }
   finish() {
     [262, 330, 392, 523].forEach((f, i) => {
       setTimeout(() => this.beep(f, 0.2, "sine", 0.08), i * 140);
