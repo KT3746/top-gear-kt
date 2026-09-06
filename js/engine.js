@@ -800,11 +800,11 @@ export class GameEngine {
 
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    // Responsive but grounded: quicker steer response, solid lane change.
-    this.steer = lerp(this.steer, want, (off ? 2.2 : 3.4) * dt);
-    const turn = (0.36 + grip * 0.32) * (0.34 + 0.58 * speedPct);
+    // Strong lane change — player input must clearly move the car.
+    this.steer = lerp(this.steer, want, (off ? 2.8 : 4.2) * dt);
+    const turn = (0.48 + grip * 0.40) * (0.40 + 0.70 * speedPct);
     this.playerX += this.steer * turn * dt;
-    this.playerX += (-look.curve * (off ? 0.036 : 0.030) * speedPct) * dt;
+    this.playerX += (-look.curve * (off ? 0.034 : 0.028) * speedPct) * dt;
     if (!want && (this.sideShock || 0) <= 0) {
       this.playerX = lerp(this.playerX, clamp(-look.curve * 0.032, -0.20, 0.20), (off ? 1.9 : 0.95) * dt);
     }
@@ -1199,7 +1199,7 @@ export class GameEngine {
     if ((p.bumpLock || 0) > 0) return;
     p.speed = Math.max(0, p.speed * factor);
     p.speedAim = p.speed;
-    p.bumpLock = 0.38;
+    p.bumpLock = 0.22;
   }
 
   queueSlow(car, factor) {
@@ -1247,57 +1247,46 @@ export class GameEngine {
       const rel = (p.speed || 0) - (c.speed || 0);
       const firstHit = (p.bumpLock || 0) <= 0;
       if (firstHit) {
-        // Top Gear–style: snappy bounce, clear rear vs side.
+        // Soft early-game bump: separate cars, barely punish the player.
         const rear = dz > 28 && dz < CAR_HALF_L * 1.7 && adx < 0.34;
         const nose = dz < -28 && dz > -CAR_HALF_L * 1.7 && adx < 0.34;
-        let pFactor = 0.86;
-        let cFactor = 0.90;
+        let pFactor = 0.97;
+        let cFactor = 0.96;
         if (rear) {
-          pFactor = rel > 40 ? 0.64 : 0.74;
-          cFactor = 0.97;
+          pFactor = 0.94;
+          cFactor = 0.98;
         } else if (nose) {
-          pFactor = 0.88;
-          cFactor = rel < -40 ? 0.62 : 0.74;
-        } else {
-          pFactor = 0.82;
-          cFactor = 0.86;
+          pFactor = 0.96;
+          cFactor = 0.94;
         }
         this.hitPlayer(pFactor);
         this.queueSlow(c, cFactor);
-        this.hitShake = Math.max(this.hitShake || 0, rear || nose ? 0.85 : 1.0);
-        this.hitFlash = Math.max(this.hitFlash || 0, 1.0);
-        this.toast = "BATIDA";
-        this.toastT = 0.45;
+        this.hitShake = Math.max(this.hitShake || 0, 0.18);
+        this.hitFlash = Math.max(this.hitFlash || 0, 0.20);
         if (rear) {
-          this.shovePlayer(away * 0.22);
-          this.shiftAI(c, -away * 0.42, 140);
-          this.steer = clamp((this.steer || 0) + away * 0.4, -1, 1);
+          this.shovePlayer(away * 0.06);
+          this.shiftAI(c, -away * 0.16, 55);
         } else if (nose) {
-          this.shovePlayer(away * 0.26);
-          this.shiftAI(c, -away * 0.48, -110);
-          this.steer = clamp((this.steer || 0) + away * 0.45, -1, 1);
+          this.shovePlayer(away * 0.07);
+          this.shiftAI(c, -away * 0.18, -40);
         } else {
-          this.shovePlayer(away * 0.48);
-          this.shiftAI(c, -away * 0.68, 70);
-          this.steer = clamp((this.steer || 0) + away * 0.85, -1, 1);
-          this.lean = clamp((this.lean || 0) + away * 0.5, -0.72, 0.72);
-          this.sideShock = 0.9;
+          this.shovePlayer(away * 0.10);
+          this.shiftAI(c, -away * 0.22, 28);
+          // Do NOT yank steer/lean — that stole control and killed the fun.
+          this.sideShock = 0.12;
         }
-        p.steer = this.lean;
         if (this.bumpCool <= 0) {
           this.audio.bump();
-          this.bumpCool = 0.18;
+          this.bumpCool = 0.25;
         }
       } else {
-        p.speed = Math.min(p.speed, (p.speedAim ?? p.speed) * 0.975);
-        p.speedAim = Math.min(p.speedAim ?? p.speed, p.speed);
-        this.shovePlayer(away * 0.028);
-        this.shiftAI(c, -away * 0.04, dz > 0 ? 10 : -10);
+        // Gentle ongoing separation only
+        this.shiftAI(c, -away * 0.02, dz > 0 ? 6 : -6);
       }
       this.unstickFromPlayer(c);
       if (this.overlapping(p, c)) {
         const side = Math.sign(c.x - this.playerX) || 1;
-        this.shiftAI(c, side * 0.18, 36);
+        this.shiftAI(c, side * 0.12, 24);
         this.unstickFromPlayer(c);
       }
     }
@@ -1538,13 +1527,8 @@ export class GameEngine {
 
     if ((this.hitFlash || 0) > 0.04) {
       const f = clamp(this.hitFlash, 0, 1);
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.45 * f})`;
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.12 * f})`;
       ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = `rgba(255, 70, 40, ${0.22 * f})`;
-      ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = `rgba(255, 220, 180, ${0.55 * f})`;
-      ctx.lineWidth = 10 * f;
-      ctx.strokeRect(8, 8, w - 16, h - 16);
     }
 
     if (this.fovKick > 0.05) {
