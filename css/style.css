@@ -559,6 +559,11 @@ body.racing .top-tools {
   color: #ffe28a;
   border-color: rgba(255, 210, 90, 0.55);
 }
+.toast.toast-hit {
+  color: #ffc4b8;
+  border-color: rgba(255, 120, 90, 0.7);
+  box-shadow: 0 0 22px rgba(255, 90, 60, 0.4);
+}
 
 .countdown {
   position: absolute;
