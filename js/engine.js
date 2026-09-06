@@ -783,7 +783,7 @@ export class GameEngine {
     const look = this.findSeg(p.z + 12 * SEG);
     const grip = p.spec.grip * (off ? 0.32 : 1);
     const bend = clamp(Math.abs(look.curve || 0) / 5.0, 0, 1);
-    if (!boost) max *= 1 - bend * (0.04 / Math.max(0.72, grip));
+    if (!boost) max *= 1 - bend * (0.055 / Math.max(0.72, grip));
 
     const accel = 1800 * p.spec.accel * (boost ? 2.35 : 1) * (off ? 0.55 : 1);
     if (boost) p.speed = Math.min(max, p.speed + 420 * dt);
@@ -800,23 +800,24 @@ export class GameEngine {
 
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    this.steer = lerp(this.steer, want, (off ? 1.5 : 2.1) * dt);
-    // Stable lane rate: less tied to speed so holds feel consistent.
-    const turn = (0.22 + grip * 0.20) * (0.42 + 0.28 * speedPct);
+    // Responsive but grounded: quicker steer response, solid lane change.
+    this.steer = lerp(this.steer, want, (off ? 2.2 : 3.4) * dt);
+    const turn = (0.36 + grip * 0.32) * (0.34 + 0.58 * speedPct);
     this.playerX += this.steer * turn * dt;
-    this.playerX += (-look.curve * (off ? 0.028 : 0.022) * speedPct) * dt;
+    this.playerX += (-look.curve * (off ? 0.036 : 0.030) * speedPct) * dt;
     if (!want && (this.sideShock || 0) <= 0) {
-      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.03, -0.18, 0.18), (off ? 2.0 : 1.1) * dt);
+      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.032, -0.20, 0.20), (off ? 1.9 : 0.95) * dt);
     }
     if (this.sideShock > 0) this.sideShock = Math.max(0, this.sideShock - dt);
     if (this.hitShake > 0) this.hitShake = Math.max(0, this.hitShake - dt * 2.8);
     if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt * 2.2);
-    const tooWide = Math.abs(this.playerX) > 0.78;
+    // Only soften at the very edge — don't fight mid-lane turns.
+    const tooWide = Math.abs(this.playerX) > 0.92;
     if (tooWide && want && Math.sign(want) === Math.sign(this.playerX)) {
-      this.steer = lerp(this.steer, 0, 10 * dt);
+      this.steer = lerp(this.steer, 0, 6 * dt);
     }
-    if (Math.abs(this.playerX) > 0.82) {
-      this.playerX = lerp(this.playerX, Math.sign(this.playerX) * 0.72, 2.6 * dt);
+    if (Math.abs(this.playerX) > 0.98) {
+      this.playerX = lerp(this.playerX, Math.sign(this.playerX) * 0.90, 1.8 * dt);
     }
     if (off) this._recovering = true;
     if (this._recovering) {
