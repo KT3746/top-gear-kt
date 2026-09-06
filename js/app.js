@@ -935,6 +935,7 @@ class App {
       toast.textContent = h.toast;
       toast.classList.toggle("toast-nitro", h.toast === "NITRO");
       toast.classList.toggle("toast-fuel", h.toast === "TANQUE CHEIO");
+      toast.classList.toggle("toast-hit", h.toast === "BATIDA");
       toast.classList.remove("hidden");
     } else toast.classList.add("hidden");
     const cd = $("countdown");
