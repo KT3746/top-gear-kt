@@ -382,47 +382,52 @@ function drawCar(ctx, x, y, scale, car, steer, nitro) {
   }
 
   const boost = typeof nitro === "number" ? nitro : (nitro ? 1 : 0);
-  ctx.fillStyle = boost > 0.05 ? "#b8fff8" : "#2a2a30";
-  ctx.fillRect(-18, 16, 8, 5);
-  ctx.fillRect(10, 16, 8, 5);
+  // Draw exhaust FIRST (behind body) so the plume reads clearly.
   if (boost > 0.05) {
-    const t = (typeof performance !== "undefined" ? performance.now() : 0) * 0.022;
-    const flick = (0.78 + 0.22 * Math.sin(t * 3.1)) * clamp(boost, 0, 1);
-    const len = (78 + 36 * (0.55 + 0.45 * Math.sin(t * 3.8))) * flick;
+    const t = (typeof performance !== "undefined" ? performance.now() : 0) * 0.025;
+    const flick = (0.82 + 0.18 * Math.sin(t * 3.4)) * clamp(boost, 0, 1);
+    const len = (120 + 50 * (0.5 + 0.5 * Math.sin(t * 4.0))) * flick;
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = `rgba(40, 210, 255, ${0.34 * flick})`;
+    ctx.fillStyle = `rgba(30, 200, 255, ${0.45 * flick})`;
     ctx.beginPath();
-    ctx.ellipse(0, 34, 62, 16, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 38, 78, 22, 0, 0, Math.PI * 2);
     ctx.fill();
-    for (const ox of [-16, 0, 16]) {
-      const wob = Math.sin(t * 4.6 + ox) * 6;
-      const wide = ox === 0 ? 0.7 : 1;
-      ctx.fillStyle = `rgba(40, 190, 255, ${0.5 * flick * wide})`;
+    for (const ox of [-20, 0, 20]) {
+      const wob = Math.sin(t * 5.0 + ox) * 8;
+      const wide = ox === 0 ? 0.85 : 1.15;
+      ctx.fillStyle = `rgba(20, 170, 255, ${0.55 * flick})`;
       ctx.beginPath();
-      ctx.moveTo(ox - 14 * wide, 18);
-      ctx.quadraticCurveTo(ox - 26 * flick * wide + wob, 28 + len * 0.42, ox + wob * 0.35, 24 + len);
-      ctx.quadraticCurveTo(ox + 26 * flick * wide + wob, 28 + len * 0.42, ox + 14 * wide, 18);
+      ctx.moveTo(ox - 18 * wide, 16);
+      ctx.quadraticCurveTo(ox - 34 * flick * wide + wob, 30 + len * 0.4, ox + wob * 0.4, 26 + len);
+      ctx.quadraticCurveTo(ox + 34 * flick * wide + wob, 30 + len * 0.4, ox + 18 * wide, 16);
       ctx.fill();
-      ctx.fillStyle = `rgba(210, 255, 255, ${0.62 * flick})`;
+      ctx.fillStyle = `rgba(180, 250, 255, ${0.7 * flick})`;
       ctx.beginPath();
-      ctx.moveTo(ox - 6 * wide, 18);
-      ctx.lineTo(ox + wob * 0.25, 18 + len * 0.7);
-      ctx.lineTo(ox + 6 * wide, 18);
+      ctx.moveTo(ox - 8 * wide, 16);
+      ctx.lineTo(ox + wob * 0.3, 16 + len * 0.72);
+      ctx.lineTo(ox + 8 * wide, 16);
       ctx.fill();
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * flick})`;
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * flick})`;
       ctx.beginPath();
-      ctx.moveTo(ox - 2.6, 18);
-      ctx.lineTo(ox, 18 + len * 0.45);
-      ctx.lineTo(ox + 2.6, 18);
+      ctx.moveTo(ox - 3.5, 16);
+      ctx.lineTo(ox, 16 + len * 0.48);
+      ctx.lineTo(ox + 3.5, 16);
       ctx.fill();
-      ctx.fillStyle = `rgba(255, 150, 40, ${0.5 * flick})`;
+      ctx.fillStyle = `rgba(255, 140, 40, ${0.55 * flick})`;
       ctx.beginPath();
-      ctx.arc(ox + wob * 0.6, 22 + len * 0.82, 4.2 + flick * 2, 0, Math.PI * 2);
+      ctx.arc(ox + wob * 0.7, 24 + len * 0.85, 5.5 + flick * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255, 230, 120, ${0.4 * flick})`;
+      ctx.beginPath();
+      ctx.arc(ox - wob * 0.5, 20 + len * 0.6, 3.5, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
   }
+  ctx.fillStyle = boost > 0.05 ? "#b8fff8" : "#2a2a30";
+  ctx.fillRect(-18, 16, 8, 5);
+  ctx.fillRect(10, 16, 8, 5);
   ctx.restore();
 }
 
@@ -778,7 +783,7 @@ export class GameEngine {
     const look = this.findSeg(p.z + 12 * SEG);
     const grip = p.spec.grip * (off ? 0.32 : 1);
     const bend = clamp(Math.abs(look.curve || 0) / 5.0, 0, 1);
-    if (!boost) max *= 1 - bend * (0.08 / Math.max(0.72, grip));
+    if (!boost) max *= 1 - bend * (0.04 / Math.max(0.72, grip));
 
     const accel = 1800 * p.spec.accel * (boost ? 2.35 : 1) * (off ? 0.55 : 1);
     if (boost) p.speed = Math.min(max, p.speed + 420 * dt);
@@ -795,16 +800,17 @@ export class GameEngine {
 
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    this.steer = lerp(this.steer, want, (off ? 1.6 : 2.4) * dt);
-    const turn = (0.26 + grip * 0.24) * (0.20 + 0.52 * speedPct);
+    this.steer = lerp(this.steer, want, (off ? 1.5 : 2.1) * dt);
+    // Stable lane rate: less tied to speed so holds feel consistent.
+    const turn = (0.22 + grip * 0.20) * (0.42 + 0.28 * speedPct);
     this.playerX += this.steer * turn * dt;
-    this.playerX += (-look.curve * (off ? 0.035 : 0.032) * speedPct) * dt;
+    this.playerX += (-look.curve * (off ? 0.028 : 0.022) * speedPct) * dt;
     if (!want && (this.sideShock || 0) <= 0) {
       this.playerX = lerp(this.playerX, clamp(-look.curve * 0.03, -0.18, 0.18), (off ? 2.0 : 1.1) * dt);
     }
     if (this.sideShock > 0) this.sideShock = Math.max(0, this.sideShock - dt);
     if (this.hitShake > 0) this.hitShake = Math.max(0, this.hitShake - dt * 2.8);
-    if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt * 3.5);
+    if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt * 2.2);
     const tooWide = Math.abs(this.playerX) > 0.78;
     if (tooWide && want && Math.sign(want) === Math.sign(this.playerX)) {
       this.steer = lerp(this.steer, 0, 10 * dt);
@@ -1108,15 +1114,15 @@ export class GameEngine {
   spriteHitsPlayer(car) {
     if (!car || car.human || !this.player) return false;
     const dz = this.aiDepth(car);
-    if (dz < 25 || dz > 1100) return false;
+    if (dz < 10 || dz > 1400) return false;
     const pose = this.rivalScreenPose(car);
-    if (pose.s < 0.30) return false;
+    if (pose.s < 0.22) return false;
     const pb = this.playerScreenBox();
     const rb = this.spriteBox(pose.x, pose.y, pose.s, car.steer || 0);
     const ox = Math.min(pb.r, rb.r) - Math.max(pb.l, rb.l);
     const oy = Math.min(pb.b, rb.b) - Math.max(pb.t, rb.t);
-    if (ox < 6 || oy < 5) return false;
-    const body = pb.t + (pb.b - pb.t) * 0.20;
+    if (ox < 3 || oy < 3) return false;
+    const body = pb.t + (pb.b - pb.t) * 0.12;
     if (rb.b < body) return false;
     return true;
   }
@@ -1131,9 +1137,9 @@ export class GameEngine {
       const ai = a.human ? b : a;
       const dz = this.aiDepth(ai);
       const ax = Math.abs(ai.x - (this.playerX ?? this.player.x));
-      if (dz > -CAR_HALF_L * 1.15 && dz < CAR_HALF_L * 1.9 && ax < CAR_HALF_W * 3.1) return true;
-      if (Math.abs(dz) < CAR_HALF_L * 1.05 && ax < CAR_HALF_W * 3.4) return true;
-      if (ax < 0.55) return this.spriteHitsPlayer(ai);
+      if (dz > -CAR_HALF_L * 1.4 && dz < CAR_HALF_L * 2.4 && ax < CAR_HALF_W * 3.8) return true;
+      if (Math.abs(dz) < CAR_HALF_L * 1.3 && ax < CAR_HALF_W * 4.0) return true;
+      if (ax < 0.72) return this.spriteHitsPlayer(ai);
       return false;
     }
     return adz < CAR_HALF_L * 2 && adx < CAR_HALF_W * 2;
@@ -1257,27 +1263,29 @@ export class GameEngine {
         }
         this.hitPlayer(pFactor);
         this.queueSlow(c, cFactor);
-        this.hitShake = Math.max(this.hitShake || 0, rear || nose ? 0.55 : 0.72);
-        this.hitFlash = Math.max(this.hitFlash || 0, 0.55);
+        this.hitShake = Math.max(this.hitShake || 0, rear || nose ? 0.85 : 1.0);
+        this.hitFlash = Math.max(this.hitFlash || 0, 1.0);
+        this.toast = "BATIDA";
+        this.toastT = 0.45;
         if (rear) {
-          this.shovePlayer(away * 0.14);
-          this.shiftAI(c, -away * 0.30, 110);
-          this.steer = clamp((this.steer || 0) + away * 0.28, -1, 1);
+          this.shovePlayer(away * 0.22);
+          this.shiftAI(c, -away * 0.42, 140);
+          this.steer = clamp((this.steer || 0) + away * 0.4, -1, 1);
         } else if (nose) {
-          this.shovePlayer(away * 0.18);
-          this.shiftAI(c, -away * 0.36, -90);
-          this.steer = clamp((this.steer || 0) + away * 0.34, -1, 1);
+          this.shovePlayer(away * 0.26);
+          this.shiftAI(c, -away * 0.48, -110);
+          this.steer = clamp((this.steer || 0) + away * 0.45, -1, 1);
         } else {
-          this.shovePlayer(away * 0.38);
-          this.shiftAI(c, -away * 0.55, 55);
-          this.steer = clamp((this.steer || 0) + away * 0.72, -1, 1);
-          this.lean = clamp((this.lean || 0) + away * 0.42, -0.72, 0.72);
-          this.sideShock = 0.75;
+          this.shovePlayer(away * 0.48);
+          this.shiftAI(c, -away * 0.68, 70);
+          this.steer = clamp((this.steer || 0) + away * 0.85, -1, 1);
+          this.lean = clamp((this.lean || 0) + away * 0.5, -0.72, 0.72);
+          this.sideShock = 0.9;
         }
         p.steer = this.lean;
         if (this.bumpCool <= 0) {
           this.audio.bump();
-          this.bumpCool = 0.22;
+          this.bumpCool = 0.18;
         }
       } else {
         p.speed = Math.min(p.speed, (p.speedAim ?? p.speed) * 0.975);
@@ -1528,10 +1536,14 @@ export class GameEngine {
     this.drawRoad(w, h, def);
 
     if ((this.hitFlash || 0) > 0.04) {
-      ctx.fillStyle = `rgba(255, 255, 255, ${0.28 * this.hitFlash})`;
+      const f = clamp(this.hitFlash, 0, 1);
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.45 * f})`;
       ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = `rgba(255, 90, 60, ${0.12 * this.hitFlash})`;
+      ctx.fillStyle = `rgba(255, 70, 40, ${0.22 * f})`;
       ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = `rgba(255, 220, 180, ${0.55 * f})`;
+      ctx.lineWidth = 10 * f;
+      ctx.strokeRect(8, 8, w - 16, h - 16);
     }
 
     if (this.fovKick > 0.05) {
@@ -1734,6 +1746,25 @@ export class GameEngine {
         this._playerDrawX = dx;
       }
       drawCar(this.ctx, dx, s.destY, s.s, s.c.car, st, nitro);
+      if (nitro > 0.05 && s.human) {
+        const ctx = this.ctx;
+        const t = (this._frame || 0) * 0.35;
+        const flick = 0.75 + 0.25 * Math.sin(t);
+        const sy = s.s * 1.22;
+        ctx.save();
+        ctx.globalCompositeOperation = "lighter";
+        const gy = s.destY + 18 * sy;
+        const g = ctx.createRadialGradient(dx, gy, 2, dx, gy + 40 * s.s, 90 * s.s * flick);
+        g.addColorStop(0, `rgba(255,255,255,${0.55 * nitro * flick})`);
+        g.addColorStop(0.25, `rgba(120,230,255,${0.45 * nitro * flick})`);
+        g.addColorStop(0.6, `rgba(40,160,255,${0.22 * nitro})`);
+        g.addColorStop(1, "rgba(0,60,120,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(dx, gy + 28 * s.s, 55 * s.s * flick, 70 * s.s * flick, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     };
     for (const s of sprites) {
       if (s.human) continue;
