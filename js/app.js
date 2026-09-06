@@ -218,8 +218,17 @@ class App {
       for (const t of e.changedTouches) press(`t${t.identifier}`, key);
     };
     const onTouchEnd = (e) => {
-      if (e.cancelable) e.preventDefault();
-      for (const t of e.changedTouches) release(`t${t.identifier}`);
+      let released = false;
+      for (const t of e.changedTouches) {
+        const id = `t${t.identifier}`;
+        if (this._pointers.has(id)) {
+          release(id);
+          released = true;
+        }
+      }
+      // Only block the synthetic click when a pad hold actually ended.
+      // Blanket preventDefault on every touchend was killing menu buttons (Jogar).
+      if (released && e.cancelable) e.preventDefault();
     };
 
     document.querySelectorAll("[data-hold]").forEach((el) => {
