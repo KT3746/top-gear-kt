@@ -1323,9 +1323,7 @@ export class GameEngine {
       if (Math.abs(this.playerX - seg.pickup.x) < 0.48) {
         seg.pickup.taken = true;
         this.player.fuel = 1;
-        this.toast = "TANQUE CHEIO";
-        this.toastT = 0.7;
-        this.audio.ok();
+        this.audio.pickup?.();
         return;
       }
     }
