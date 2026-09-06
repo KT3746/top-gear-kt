@@ -933,6 +933,8 @@ class App {
     const showToast = !rotateBlock && h.toast && (h.toast !== "NITRO" || h.boosting);
     if (showToast) {
       toast.textContent = h.toast;
+      toast.classList.toggle("toast-nitro", h.toast === "NITRO");
+      toast.classList.toggle("toast-fuel", h.toast === "TANQUE CHEIO");
       toast.classList.remove("hidden");
     } else toast.classList.add("hidden");
     const cd = $("countdown");
