@@ -800,13 +800,15 @@ export class GameEngine {
 
     const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
     const want = (right ? 1 : 0) - (left ? 1 : 0);
-    // Strong lane change — player input must clearly move the car.
-    this.steer = lerp(this.steer, want, (off ? 2.8 : 4.2) * dt);
-    const turn = (0.48 + grip * 0.40) * (0.40 + 0.70 * speedPct);
+    // Easy lane changes — strong lateral move even at mid speed.
+    this.steer = lerp(this.steer, want, (off ? 3.4 : 6.0) * dt);
+    const turn = (0.78 + grip * 0.48) * (0.72 + 0.70 * speedPct);
     this.playerX += this.steer * turn * dt;
-    this.playerX += (-look.curve * (off ? 0.034 : 0.028) * speedPct) * dt;
+    // Curve drift fights less while you hold a direction.
+    const curvePull = want ? 0.012 : (off ? 0.034 : 0.026);
+    this.playerX += (-look.curve * curvePull * speedPct) * dt;
     if (!want && (this.sideShock || 0) <= 0) {
-      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.032, -0.20, 0.20), (off ? 1.9 : 0.95) * dt);
+      this.playerX = lerp(this.playerX, clamp(-look.curve * 0.028, -0.16, 0.16), (off ? 1.6 : 0.7) * dt);
     }
     if (this.sideShock > 0) this.sideShock = Math.max(0, this.sideShock - dt);
     if (this.hitShake > 0) this.hitShake = Math.max(0, this.hitShake - dt * 2.8);
@@ -974,7 +976,10 @@ export class GameEngine {
     if (!freezePlayer) {
       const seg = this.findSeg(p.z);
       const speedPct = p.speed / Math.max(1, this.maxSpeed(p));
-      this.playerX -= dt * speedPct * seg.curve * CENTRIFUGAL / (p.spec.grip * (Math.abs(this.playerX) > 1 ? 0.4 : 1));
+      {
+        const hold = (this.keys?.left || this.keys?.right) ? 0.45 : 1;
+        this.playerX -= dt * speedPct * seg.curve * CENTRIFUGAL * hold / (p.spec.grip * (Math.abs(this.playerX) > 1 ? 0.4 : 1));
+      }
       p._prevZ = p.z;
       p.z += p.speed * dt;
       p.z = wrapZ(p.z, len);
@@ -1099,8 +1104,8 @@ export class GameEngine {
   playerDrawX(w, h, steer) {
     const st = clamp(steer || 0, -1, 1);
     const s = CAR_SCALE_AT_PLAYER * (h / 720);
-    const shift = st * (16 * s + 26);
-    return clamp(w / 2 - shift, w * 0.34, w * 0.66);
+    const shift = st * (28 * s + 48);
+    return clamp(w / 2 - shift, w * 0.26, w * 0.74);
   }
 
   playerScreenBox() {
