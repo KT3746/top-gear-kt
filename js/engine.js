@@ -1,4 +1,4 @@
-import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=bgm1";
+import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=tv1";
 
 const SEG = 200;
 const ROAD = 2100;
@@ -488,6 +488,12 @@ export class GameEngine {
     this.onFinish = null;
     this.toast = "";
     this.toastT = 0;
+    this.lapFlash = null;
+    this.lapFlashT = 0;
+    this.radio = "";
+    this.radioT = 0;
+    this._fuelWarn = 0;
+    this._nitroRadioLatch = false;
     this.bumpCool = 0;
     this.upgrades = { engine: 0, tires: 0, nitro: 0 };
     this.playerCarId = "fenix";
@@ -636,6 +642,14 @@ export class GameEngine {
     this.laps = 1;
     this.countdown = 3;
     this.finished = false;
+    this.toast = "";
+    this.toastT = 0;
+    this.lapFlash = null;
+    this.lapFlashT = 0;
+    this.radio = "";
+    this.radioT = 0;
+    this._fuelWarn = 0;
+    this._nitroRadioLatch = false;
     this._aiDoneAt = 0;
     this.results = null;
     this.mode = "race";
@@ -766,6 +780,7 @@ export class GameEngine {
       p.nitroBurst = NITRO_BURST * (p.spec.nitroTank || 1);
       this.fovKick = 1;
       this.audio?.nitro?.();
+      this.radioSay("Nitro! Vai fundo!", 1.8);
     }
     p._nitroLatch = wantNitro;
     const boost = p.nitroBurst > 0 && p.fuel > 0 && !off;
@@ -855,6 +870,18 @@ export class GameEngine {
     }
     if (p.speed > 80) {
       p.fuel = Math.max(0, p.fuel - dt * (0.0078 + speedPct * 0.0064) / p.spec.fuel);
+    }
+    if (p.fuel <= 0 && this._fuelWarn < 3) {
+      this._fuelWarn = 3;
+      this.radioSay("Sem combustível! Economiza!", 2.6);
+    } else if (p.fuel > 0 && p.fuel <= 0.12 && this._fuelWarn < 2) {
+      this._fuelWarn = 2;
+      this.radioSay("Tanque no vermelho!", 2.4);
+    } else if (p.fuel > 0.12 && p.fuel <= 0.28 && this._fuelWarn < 1) {
+      this._fuelWarn = 1;
+      this.radioSay("Combustível baixo!", 2.2);
+    } else if (p.fuel > 0.45) {
+      this._fuelWarn = 0;
     }
     if (off) {
       if (this.toast !== "NITRO" && this.toast !== "DE VOLTA À PISTA") {
@@ -1002,6 +1029,14 @@ export class GameEngine {
       }
     }
     this.toastT -= dt;
+    if (this.lapFlashT > 0) {
+      this.lapFlashT -= dt;
+      if (this.lapFlashT <= 0) this.lapFlash = null;
+    }
+    if (this.radioT > 0) {
+      this.radioT -= dt;
+      if (this.radioT <= 0) this.radio = "";
+    }
   }
 
   followCamera(dt) {
@@ -1281,7 +1316,9 @@ export class GameEngine {
       if (Math.abs(this.playerX - seg.pickup.x) < 0.48) {
         seg.pickup.taken = true;
         this.player.fuel = 1;
+        this._fuelWarn = 0;
         this.audio.pickup?.();
+        this.radioSay("Tanque cheio!", 1.5);
         return;
       }
     }
@@ -1309,6 +1346,12 @@ export class GameEngine {
     for (const c of this.cars) c.place = this.livePlace(c);
   }
 
+  radioSay(msg, dur = 2.4) {
+    if (!msg) return;
+    this.radio = msg;
+    this.radioT = dur;
+  }
+
   checkLaps() {
     const len = this.track.length;
     for (const c of this.cars) {
@@ -1318,11 +1361,20 @@ export class GameEngine {
       if (crossed && this.countdown <= 0 && !c.finished) {
         c.laps += 1;
         if (c.human) {
-          if (this.bestLap == null || this.lapTime < this.bestLap) this.bestLap = this.lapTime;
+          const finishedLap = this.lapTime;
+          if (this.bestLap == null || finishedLap < this.bestLap) this.bestLap = finishedLap;
+          const done = c.laps >= this.totalLaps;
           this.laps = Math.min(this.totalLaps, c.laps + 1);
+          this.lapFlash = {
+            title: done ? "CHEGADA" : `VOLTA ${c.laps}`,
+            place: this.livePlace(this.player),
+            time: finishedLap,
+          };
+          this.lapFlashT = done ? 2.6 : 2.2;
           this.lapTime = 0;
-          this.toast = c.laps >= this.totalLaps ? "CHEGADA" : "VOLTA";
-          this.toastT = 1.2;
+          this.toast = "";
+          this.toastT = 0;
+          this.radioSay(done ? "Chegada! Que bela corrida!" : "Volta completa! Mantém o ritmo!", 2.0);
         }
         if (c.laps >= this.totalLaps) {
           c.finished = true;
@@ -1379,6 +1431,11 @@ export class GameEngine {
       countdown: this.countdown,
       boosting: !!(p?.nitroBurst > 0 && p?.fuel > 0 && (p?.speed || 0) > 40 && Math.abs(this.playerX) <= 1),
       finished: this.finished,
+      trackName: this.track?.def?.name || "",
+      trackFlag: this.track?.def?.flag || "🏁",
+      trackPlace: this.track?.def?.place || "",
+      lapFlash: this.lapFlashT > 0 ? this.lapFlash : null,
+      radio: this.radioT > 0 && this.radio ? this.radio : "",
     };
   }
 
