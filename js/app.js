@@ -1,7 +1,7 @@
-import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=minimapPro2";
-import { AudioBus } from "./audio.js?v=minimapPro2";
-import { GameEngine } from "./engine.js?v=minimapPro2";
-import { getModo } from "./modo.js?v=minimapPro2";
+import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=bgm1";
+import { AudioBus } from "./audio.js?v=bgm1";
+import { GameEngine } from "./engine.js?v=bgm1";
+import { getModo } from "./modo.js?v=bgm1";
 
 const SAVE_KEY = "relampago-save";
 
