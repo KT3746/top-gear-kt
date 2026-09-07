@@ -185,6 +185,8 @@ function recipeVale() {
 export const TRACKS = [
   {
     id: "praia",
+    flag: "🏖️",
+    flagCode: "BR",
     name: "Praia Dourada",
     place: "Litoral",
     mood: "Sol alto, mar no horizonte, palmeiras na beira.",
@@ -204,6 +206,8 @@ export const TRACKS = [
   },
   {
     id: "alpes",
+    flag: "🏔️",
+    flagCode: "CH",
     name: "Alpes de Prata",
     place: "Serra",
     mood: "Fim de tarde, pinheiros e ar frio.",
@@ -223,6 +227,8 @@ export const TRACKS = [
   },
   {
     id: "metro",
+    flag: "🌃",
+    flagCode: "JP",
     name: "Metrópole",
     place: "Cidade",
     mood: "Noite molhada, neon e prédios.",
@@ -242,6 +248,8 @@ export const TRACKS = [
   },
   {
     id: "dunas",
+    flag: "🏜️",
+    flagCode: "MA",
     name: "Dunas do Norte",
     place: "Deserto",
     mood: "Calor, horizonte longo, chão de cobre.",
@@ -261,6 +269,8 @@ export const TRACKS = [
   },
   {
     id: "vale",
+    flag: "🌲",
+    flagCode: "CA",
     name: "Vale Verde",
     place: "Floresta",
     mood: "Névoa baixa, sombra e cheiro de chuva.",
