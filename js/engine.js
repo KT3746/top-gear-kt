@@ -1,4 +1,4 @@
-import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=minimapPro2";
+import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=bgm1";
 
 const SEG = 200;
 const ROAD = 2100;
