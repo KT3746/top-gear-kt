@@ -6,10 +6,10 @@ export class AudioBus {
     this.musicGain = null;
     this.sfxGain = null;
     this.engine = null;
-    this.pad = null;
     this.timer = null;
     this.step = 0;
     this.theme = "menu";
+    this._nextAt = 0;
   }
 
   unlock() {
@@ -20,7 +20,7 @@ export class AudioBus {
     this.master = this.ctx.createGain();
     this.musicGain = this.ctx.createGain();
     this.sfxGain = this.ctx.createGain();
-    this.musicGain.gain.value = 0.12;
+    this.musicGain.gain.value = 0.16;
     this.sfxGain.gain.value = 0.22;
     this.musicGain.connect(this.master);
     this.sfxGain.connect(this.master);
@@ -126,85 +126,126 @@ export class AudioBus {
     this.engine.g.gain.setTargetAtTime(gain, now, 0.1);
   }
 
-  stopPad() {
+  stopMusic() {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
     }
-    if (this.pad) {
-      try {
-        this.pad.g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.08);
-        this.pad.o1.stop(this.ctx.currentTime + 0.12);
-        this.pad.o2.stop(this.ctx.currentTime + 0.12);
-      } catch {}
-      this.pad = null;
-    }
   }
 
-  startPad(freqs, vol) {
-    if (!this.ctx) return;
-    const o1 = this.ctx.createOscillator();
-    const o2 = this.ctx.createOscillator();
-    const f = this.ctx.createBiquadFilter();
-    const g = this.ctx.createGain();
-    o1.type = "sine";
-    o2.type = "sine";
-    o1.frequency.value = freqs[0];
-    o2.frequency.value = freqs[1];
-    f.type = "lowpass";
-    f.frequency.value = 420;
-    g.gain.value = vol;
-    o1.connect(f);
-    o2.connect(f);
-    f.connect(g);
-    g.connect(this.musicGain);
-    o1.start();
-    o2.start();
-    this.pad = { o1, o2, f, g };
+  // Original chiptune-style loops (inspired by SNES racers, not a copy of any track).
+  patterns() {
+    // MIDI-ish note numbers → Hz
+    const n = (midi) => midi ? 440 * Math.pow(2, (midi - 69) / 12) : 0;
+    if (this.theme === "race") {
+      // Fast 16-step loop in A minor / C mix — bouncey racing energy
+      return {
+        bpm: 148,
+        steps: 16,
+        bass:  [33, 0, 33, 0, 36, 0, 33, 0, 31, 0, 31, 0, 36, 0, 38, 0].map(n),
+        lead:  [69, 72, 76, 72, 69, 67, 64, 67, 69, 72, 74, 76, 74, 72, 69, 67].map(n),
+        lead2: [0, 0, 64, 0, 0, 0, 60, 0, 0, 0, 62, 0, 0, 0, 64, 0].map(n),
+        hat:   [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1],
+        kick:  [1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0],
+      };
+    }
+    // Menu: mid-tempo, catchy but calmer
+    return {
+      bpm: 112,
+      steps: 16,
+      bass:  [33, 0, 0, 33, 36, 0, 0, 36, 38, 0, 0, 38, 36, 0, 31, 0].map(n),
+      lead:  [64, 0, 67, 69, 0, 67, 64, 0, 62, 0, 64, 67, 0, 69, 67, 64].map(n),
+      lead2: [0, 57, 0, 0, 60, 0, 0, 57, 0, 55, 0, 0, 57, 0, 0, 55].map(n),
+      hat:   [1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0],
+      kick:  [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+    };
   }
 
   startMusic(theme) {
     this.theme = theme;
     if (!this.ctx) return;
-    this.stopPad();
+    this.stopMusic();
     this.step = 0;
-    if (theme === "race") {
-      this.startPad([55, 82.4], 0.045);
-      this.timer = setInterval(() => this.tick(), 920);
-    } else {
-      this.startPad([65.4, 98], 0.04);
-      this.timer = setInterval(() => this.tick(), 1400);
-    }
+    const p = this.patterns();
+    const stepMs = Math.max(80, Math.round(60000 / p.bpm / 4));
+    this._sched = p;
+    // Schedule slightly ahead so mobile stays steady
+    this._nextAt = this.ctx.currentTime + 0.05;
+    this.timer = setInterval(() => this.tick(), Math.max(20, stepMs / 2));
   }
 
   tick() {
-    if (!this.ctx || this.muted) {
+    if (!this.ctx || !this._sched) return;
+    const p = this._sched;
+    const stepDur = 60 / p.bpm / 4;
+    const now = this.ctx.currentTime;
+    // Catch up if tab lagged
+    if (this._nextAt < now - 0.25) this._nextAt = now + 0.02;
+    while (this._nextAt <= now + 0.08) {
+      const i = this.step % p.steps;
+      const t = this._nextAt;
+      if (!this.muted) {
+        const race = this.theme === "race";
+        if (p.bass[i]) this.tone(p.bass[i], stepDur * 0.92, "triangle", race ? 0.07 : 0.055, t);
+        if (p.lead[i]) this.tone(p.lead[i], stepDur * 0.7, race ? "square" : "triangle", race ? 0.038 : 0.032, t);
+        if (p.lead2[i]) this.tone(p.lead2[i], stepDur * 0.85, "sine", race ? 0.028 : 0.024, t);
+        if (p.kick[i]) this.kick(t, race ? 0.06 : 0.045);
+        if (p.hat[i]) this.hat(t, race ? 0.028 : 0.02);
+      }
       this.step++;
-      return;
+      this._nextAt += stepDur;
     }
-    const t = this.ctx.currentTime;
-    const race = this.theme === "race";
-    const bass = race ? [55, 61.7, 49, 55] : [65.4, 73.4, 55, 65.4];
-    const i = this.step % 4;
-    this.tone(bass[i], race ? 0.55 : 0.7, "sine", race ? 0.035 : 0.03, t);
-    if (this.pad) {
-      this.pad.o1.frequency.setTargetAtTime(bass[i], t, 0.2);
-      this.pad.o2.frequency.setTargetAtTime(bass[i] * 1.5, t, 0.25);
-    }
-    this.step++;
+  }
+
+  kick(time, vol) {
+    const o = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(140, time);
+    o.frequency.exponentialRampToValueAtTime(42, time + 0.12);
+    g.gain.setValueAtTime(vol, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.14);
+    o.connect(g);
+    g.connect(this.musicGain);
+    o.start(time);
+    o.stop(time + 0.15);
+  }
+
+  hat(time, vol) {
+    const n = this.ctx.createBufferSource();
+    const dur = 0.04;
+    const buf = this.ctx.createBuffer(1, Math.max(1, this.ctx.sampleRate * dur), this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    n.buffer = buf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = "highpass";
+    f.frequency.value = 6000;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + dur);
+    n.connect(f);
+    f.connect(g);
+    g.connect(this.musicGain);
+    n.start(time);
+    n.stop(time + dur);
   }
 
   tone(freq, dur, type, vol, time) {
     if (!freq) return;
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
+    const f = this.ctx.createBiquadFilter();
     o.type = type;
     o.frequency.value = freq;
+    f.type = "lowpass";
+    f.frequency.value = type === "square" ? 2200 : 1800;
     g.gain.setValueAtTime(vol, time);
-    g.gain.exponentialRampToValueAtTime(0.001, time + dur);
-    o.connect(g);
+    g.gain.exponentialRampToValueAtTime(0.001, time + Math.max(0.03, dur));
+    o.connect(f);
+    f.connect(g);
     g.connect(this.musicGain);
     o.start(time);
-    o.stop(time + dur);
+    o.stop(time + dur + 0.02);
   }
 }
