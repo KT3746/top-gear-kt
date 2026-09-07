@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=Teko:wght@500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="../css/style.css?v=bgm1" />
+  <link rel="stylesheet" href="../css/style.css?v=tv1" />
 </head>
 <body data-modo="pc" class="modo-pc">
   <div id="app">
@@ -18,6 +18,10 @@
 
     <div id="hud" class="hud hidden" aria-hidden="true">
       <div class="hud-top">
+        <div class="hud-card hud-track">
+          <span class="hud-label">Pista</span>
+          <strong class="hud-track-value"><span id="hud-flag" class="hud-flag">🏖️</span><span id="hud-track-name">Praia</span></strong>
+        </div>
         <div class="hud-card">
           <span class="hud-label">Posição</span>
           <strong id="hud-pos">1<span>/8</span></strong>
@@ -58,17 +62,24 @@
       <div id="toast" class="toast hidden"></div>
     </div>
 
-    <div id="countdown" class="countdown hidden"></div>
+        <div id="lap-banner" class="lap-banner hidden" aria-live="polite">
+      <span class="lap-banner-eyebrow">Ao vivo</span>
+      <strong id="lap-banner-title">VOLTA</strong>
+      <div class="lap-banner-stats">
+        <span class="lap-banner-pos">P<span id="lap-banner-pos">1</span></span>
+        <span id="lap-banner-time">0:00.00</span>
+      </div>
+    </div>
 
-    <section id="screen-title" class="screen">
-      <div class="screen-inner">
-        <p class="eyebrow">Versão para computador</p>
-        <h1>RELÂMPAGO</h1>
-        <p class="tagline">A pista vem até você. Oito carros. Cinco países. Uma taça.</p>
-        <div class="menu" id="menu-title">
-          <button type="button" data-action="play" class="primary">Jogar</button>
-          <button type="button" data-action="howto">Como jogar</button>
-        </div>
+    <div id="radio" class="radio hidden" aria-live="polite">
+      <span class="radio-tag">Rádio</span>
+      <span id="radio-msg"></span>
+    </div>
+
+<div id="countdown" class="countdown hidden" aria-live="polite">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <strong id="countdown-num">3</strong>
+    </div>
         <p class="hint">Setas ou W A S D. Nitro no Shift ou no Espaço. Pausa em Esc.</p>
         <p class="hint"><a href="../index.html">Quero a versão de celular</a></p>
       </div>
@@ -185,6 +196,6 @@
       <button type="button" id="btn-full" title="Tela cheia">Tela cheia</button>
     </div>
   </div>
-  <script type="module" src="../js/app.js?v=bgm1"></script>
+  <script type="module" src="../js/app.js?v=tv1"></script>
 </body>
 </html>
