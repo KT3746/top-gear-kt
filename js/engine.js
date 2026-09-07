@@ -1,4 +1,4 @@
-import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=minimapPro";
+import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=minimapPro2";
 
 const SEG = 200;
 const ROAD = 2100;
@@ -1432,15 +1432,15 @@ export class GameEngine {
     pts.forEach((p, i) => i ? m.lineTo(tx(p.x), ty(p.y)) : m.moveTo(tx(p.x), ty(p.y)));
     m.closePath();
     m.strokeStyle = "rgba(0,0,0,0.55)";
-    m.lineWidth = 11 * dpr;
+    m.lineWidth = 8 * dpr;
     m.stroke();
     m.strokeStyle = night ? "rgba(80, 110, 150, 0.55)" : "rgba(255,255,255,0.22)";
-    m.lineWidth = 8.5 * dpr;
+    m.lineWidth = 6 * dpr;
     m.stroke();
     // Racing line
     m.strokeStyle = night ? "#3de0ff" : "#f0b429";
     m.globalAlpha = 0.95;
-    m.lineWidth = 3.2 * dpr;
+    m.lineWidth = 2.4 * dpr;
     m.stroke();
     m.globalAlpha = 1;
 
@@ -1488,35 +1488,43 @@ export class GameEngine {
       m.stroke();
     }
 
-    // Player — directional wedge
-    const player = this.cars.find((c) => c.human) || this.player;
+    // Player — large directional arrow (reads clearly on the racing line)
+    const player = this.player || this.cars.find((c) => c.human);
     if (player) {
       const len = this.track.length;
       const z = ((player.z % len) + len) % len;
       const i0 = Math.floor(z / SEG) % pts.length;
-      const i1 = (i0 + 1) % pts.length;
+      const look = Math.max(4, Math.round(8 / Math.max(0.5, s / dpr)));
+      const i1 = (i0 + look) % pts.length;
       const p0 = pts[i0], p1 = pts[i1];
       const x = tx(p0.x), y = ty(p0.y);
-      const ang = Math.atan2(ty(p1.y) - y, tx(p1.x) - x);
+      let ang = Math.atan2(ty(p1.y) - y, tx(p1.x) - x);
+      if (!Number.isFinite(ang)) ang = 0;
       m.save();
       m.translate(x, y);
       m.rotate(ang);
-      // glow
+      // dark halo so it pops on gold/cyan track
       m.beginPath();
-      m.arc(0, 0, 7.5 * dpr, 0, Math.PI * 2);
-      m.fillStyle = "rgba(255,255,255,0.18)";
+      m.arc(0, 0, 9.5 * dpr, 0, Math.PI * 2);
+      m.fillStyle = "rgba(0,0,0,0.55)";
       m.fill();
+      // gold ring
+      m.beginPath();
+      m.arc(0, 0, 8.2 * dpr, 0, Math.PI * 2);
+      m.strokeStyle = "#f0b429";
+      m.lineWidth = 2 * dpr;
+      m.stroke();
       // arrow
       m.beginPath();
-      m.moveTo(7.2 * dpr, 0);
-      m.lineTo(-5.2 * dpr, 4.6 * dpr);
-      m.lineTo(-3.2 * dpr, 0);
-      m.lineTo(-5.2 * dpr, -4.6 * dpr);
+      m.moveTo(9.5 * dpr, 0);
+      m.lineTo(-6.5 * dpr, 6.2 * dpr);
+      m.lineTo(-3.5 * dpr, 0);
+      m.lineTo(-6.5 * dpr, -6.2 * dpr);
       m.closePath();
       m.fillStyle = "#ffffff";
       m.fill();
-      m.strokeStyle = "rgba(0,0,0,0.75)";
-      m.lineWidth = 1.2 * dpr;
+      m.strokeStyle = "#111111";
+      m.lineWidth = 1.6 * dpr;
       m.stroke();
       m.restore();
     }
