@@ -357,7 +357,7 @@ kbd {
 }
 
 body.racing .top-tools {
-  right: calc(max(12px, env(safe-area-inset-right)) + 162px);
+  right: calc(max(12px, env(safe-area-inset-right)) + 113px);
   top: max(10px, env(safe-area-inset-top));
 }
 
@@ -432,8 +432,8 @@ body.racing .top-tools {
 }
 
 #minimap {
-  width: 180px;
-  height: 180px;
+  width: 126px;
+  height: 126px;
   background: rgba(4, 8, 14, 0.78);
   border: 2px solid rgba(255,255,255,0.32);
   border-radius: 8px;
@@ -678,9 +678,9 @@ body.racing a { pointer-events: none !important; }
   .grid-4, .grid-tracks, .shop-grid { grid-template-columns: 1fr 1fr; }
   .hud-card strong { font-size: 28px; }
   .speedo strong { font-size: 56px; }
-  #minimap { width: 168px; height: 168px; }
+  #minimap { width: 118px; height: 118px; }
   body.racing .top-tools {
-    right: calc(max(12px, env(safe-area-inset-right)) + 142px);
+    right: calc(max(12px, env(safe-area-inset-right)) + 99px);
   }
 }
 
@@ -692,14 +692,14 @@ body.racing a { pointer-events: none !important; }
 
 body.modo-celular.racing .hud-top {
   top: max(8px, env(safe-area-inset-top));
-  max-width: calc(100% - 210px);
+  max-width: calc(100% - 147px);
 }
 body.modo-celular.racing .hud-bottom {
   top: max(76px, calc(env(safe-area-inset-top) + 68px));
   bottom: auto;
   left: max(12px, env(safe-area-inset-left));
   right: auto;
-  width: min(220px, 40vw);
+  width: min(154px, 40vw);
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
@@ -715,11 +715,11 @@ body.modo-celular.racing .speedo strong { font-size: 36px; line-height: 0.9; }
 body.modo-celular.racing .bars { width: 100%; }
 body.modo-celular.racing .hud-card { padding: 4px 10px; min-width: 72px; }
 body.modo-celular.racing .hud-card strong { font-size: 24px; }
-body.modo-celular.racing #minimap { width: 168px; height: 168px; }
+body.modo-celular.racing #minimap { width: 118px; height: 118px; }
 body.modo-celular.racing .hud-mid { top: max(10px, env(safe-area-inset-top)); }
 body.modo-celular.racing .top-tools {
   top: max(8px, env(safe-area-inset-top));
-  right: calc(max(10px, env(safe-area-inset-right)) + 136px);
+  right: calc(max(10px, env(safe-area-inset-right)) + 95px);
 }
 
 @media (orientation: landscape) and (max-height: 480px) {
@@ -756,9 +756,9 @@ body.rotate-block .pads {
   .hud-card { min-width: 110px; padding: 10px 16px; }
   .speedo { padding: 10px 18px 12px; }
   .speedo strong { font-size: 92px; }
-  #minimap { width: 180px; height: 180px; }
+  #minimap { width: 126px; height: 126px; }
   body.racing .top-tools {
-    right: calc(max(12px, env(safe-area-inset-right)) + 198px);
+    right: calc(max(12px, env(safe-area-inset-right)) + 139px);
   }
   .hud-top { gap: 12px; }
 }
