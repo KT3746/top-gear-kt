@@ -1,7 +1,7 @@
-import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=bgm1";
-import { AudioBus } from "./audio.js?v=bgm1";
-import { GameEngine } from "./engine.js?v=bgm1";
-import { getModo } from "./modo.js?v=bgm1";
+import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=tv1";
+import { AudioBus } from "./audio.js?v=tv1";
+import { GameEngine } from "./engine.js?v=tv1";
+import { getModo } from "./modo.js?v=tv1";
 
 const SAVE_KEY = "relampago-save";
 
@@ -475,6 +475,8 @@ class App {
     }
     hud?.classList.add("hidden");
     count?.classList.add("hidden");
+    $("lap-banner")?.classList.add("hidden");
+    $("radio")?.classList.add("hidden");
     pads?.classList.add("hidden");
     this.pad.up = this.pad.down = this.pad.left = this.pad.right = this.pad.nitro = false;
     const el = $(`screen-${name}`);
@@ -531,6 +533,8 @@ class App {
     if (block) {
       $("toast")?.classList.add("hidden");
       $("countdown")?.classList.add("hidden");
+      $("lap-banner")?.classList.add("hidden");
+      $("radio")?.classList.add("hidden");
     }
   }
 
@@ -924,6 +928,8 @@ class App {
     $("hud-pos").innerHTML = `${h.place}<span>/${h.field}</span>`;
     $("hud-lap").innerHTML = `${h.lap}<span>/${h.laps}</span>`;
     $("hud-time").textContent = fmt(h.time);
+    if ($("hud-flag")) $("hud-flag").textContent = h.trackFlag || "🏁";
+    if ($("hud-track-name")) $("hud-track-name").textContent = h.trackName || "";
     $("hud-nitro-pips")?.querySelectorAll("i").forEach((el, i) => {
       el.classList.toggle("on", i < (h.nitroCharges || 0));
     });
@@ -938,17 +944,46 @@ class App {
       toast.classList.toggle("toast-hit", h.toast === "BATIDA");
       toast.classList.remove("hidden");
     } else toast.classList.add("hidden");
+
+    const banner = $("lap-banner");
+    if (banner) {
+      if (!rotateBlock && h.lapFlash) {
+        $("lap-banner-title").textContent = h.lapFlash.title || "VOLTA";
+        $("lap-banner-pos").textContent = String(h.lapFlash.place || h.place || 1);
+        $("lap-banner-time").textContent = fmt(h.lapFlash.time || 0);
+        banner.classList.remove("hidden");
+      } else {
+        banner.classList.add("hidden");
+      }
+    }
+
+    const radio = $("radio");
+    if (radio) {
+      if (!rotateBlock && h.radio) {
+        $("radio-msg").textContent = h.radio;
+        radio.classList.remove("hidden");
+      } else {
+        radio.classList.add("hidden");
+      }
+    }
+
     const cd = $("countdown");
     if (!rotateBlock && h.countdown > 0) {
       cd.classList.remove("hidden");
       const label = countdownLabel(h.countdown);
-      if (cd.textContent !== label) {
-        cd.textContent = label;
+      const num = $("countdown-num") || cd;
+      if (num.textContent !== label) {
+        num.textContent = label;
         if (label === "VAI") this.audio.go();
         else this.audio.count();
       }
+      cd.classList.toggle("n3", label === "3");
+      cd.classList.toggle("n2", label === "2");
+      cd.classList.toggle("n1", label === "1");
+      cd.classList.toggle("go", label === "VAI");
     } else {
       cd.classList.add("hidden");
+      cd.classList.remove("n3", "n2", "n1", "go");
     }
     if (!this.phone || this._frame % 2 === 0) this.engine.renderMinimap($("minimap"));
     this._frame = (this._frame || 0) + 1;
