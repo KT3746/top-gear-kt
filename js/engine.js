@@ -1,4 +1,4 @@
-import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=minimap30";
+import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=minimapPro";
 
 const SEG = 200;
 const ROAD = 2100;
@@ -1384,16 +1384,39 @@ export class GameEngine {
 
   renderMinimap(mapCanvas) {
     if (!this.track || !mapCanvas) return;
+    const dpr = Math.min(2, (typeof devicePixelRatio !== "undefined" ? devicePixelRatio : 1) || 1);
+    const cssW = mapCanvas.clientWidth || mapCanvas.width;
+    const cssH = mapCanvas.clientHeight || mapCanvas.height;
+    const pw = Math.max(1, Math.round(cssW * dpr));
+    const ph = Math.max(1, Math.round(cssH * dpr));
+    if (mapCanvas.width !== pw || mapCanvas.height !== ph) {
+      mapCanvas.width = pw;
+      mapCanvas.height = ph;
+    }
     const m = mapCanvas.getContext("2d");
     const w = mapCanvas.width, h = mapCanvas.height;
+    m.setTransform(1, 0, 0, 1, 0, 0);
     m.clearRect(0, 0, w, h);
+
+    // Panel fill (matches CSS; redrawn so canvas stays opaque under track)
+    const night = !!this.track.def.night;
+    const bg = m.createRadialGradient(w * 0.5, h * 0.45, 4, w * 0.5, h * 0.5, w * 0.72);
+    bg.addColorStop(0, night ? "rgba(18, 28, 48, 0.92)" : "rgba(10, 16, 28, 0.9)");
+    bg.addColorStop(1, night ? "rgba(6, 10, 20, 0.96)" : "rgba(4, 8, 14, 0.96)");
+    m.fillStyle = bg;
+    m.beginPath();
+    const r = 10 * dpr;
+    m.moveTo(r, 0); m.arcTo(w, 0, w, h, r); m.arcTo(w, h, 0, h, r); m.arcTo(0, h, 0, 0, r); m.arcTo(0, 0, w, 0, r);
+    m.closePath();
+    m.fill();
+
     const pts = this.track.map;
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (const p of pts) {
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
       minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
-    const pad = 22;
+    const pad = 18 * dpr;
     const spanX = Math.max(1, maxX - minX);
     const spanY = Math.max(1, maxY - minY);
     const s = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
@@ -1403,47 +1426,99 @@ export class GameEngine {
     const ty = (y) => oy + (y - minY) * s;
     m.lineJoin = "round";
     m.lineCap = "round";
+
+    // Soft asphalt outline
     m.beginPath();
     pts.forEach((p, i) => i ? m.lineTo(tx(p.x), ty(p.y)) : m.moveTo(tx(p.x), ty(p.y)));
     m.closePath();
-    m.strokeStyle = "rgba(255,255,255,0.55)";
-    m.lineWidth = 12;
+    m.strokeStyle = "rgba(0,0,0,0.55)";
+    m.lineWidth = 11 * dpr;
     m.stroke();
-    m.strokeStyle = this.track.def.night ? "#2de2ff" : "#f0b429";
-    m.lineWidth = 7;
+    m.strokeStyle = night ? "rgba(80, 110, 150, 0.55)" : "rgba(255,255,255,0.22)";
+    m.lineWidth = 8.5 * dpr;
     m.stroke();
+    // Racing line
+    m.strokeStyle = night ? "#3de0ff" : "#f0b429";
+    m.globalAlpha = 0.95;
+    m.lineWidth = 3.2 * dpr;
+    m.stroke();
+    m.globalAlpha = 1;
+
+    // Start / finish tick
+    if (pts.length > 2) {
+      const a = pts[0], b = pts[Math.min(6, pts.length - 1)];
+      const x0 = tx(a.x), y0 = ty(a.y);
+      const ang = Math.atan2(ty(b.y) - y0, tx(b.x) - x0);
+      m.save();
+      m.translate(x0, y0);
+      m.rotate(ang);
+      m.fillStyle = "rgba(255,255,255,0.9)";
+      m.fillRect(-1.2 * dpr, -5.5 * dpr, 2.4 * dpr, 11 * dpr);
+      m.restore();
+    }
+
+    // Fuel pickups — small amber pips
     for (const seg of this.track.segs) {
       if (!seg.pickup || seg.pickup.taken) continue;
       const p = pts[seg.index];
       if (!p) continue;
-      m.fillStyle = "#f5c400";
+      const x = tx(p.x), y = ty(p.y);
+      m.fillStyle = "rgba(245, 196, 0, 0.95)";
       m.beginPath();
-      m.arc(tx(p.x), ty(p.y), 2.4, 0, Math.PI * 2);
+      m.arc(x, y, 2.1 * dpr, 0, Math.PI * 2);
       m.fill();
+      m.strokeStyle = "rgba(0,0,0,0.45)";
+      m.lineWidth = 0.8 * dpr;
+      m.stroke();
     }
+
+    // Rivals first (under player)
     for (const c of this.cars) {
+      if (c.human || c.finished) continue;
       const i = Math.floor((((c.z % this.track.length) + this.track.length) % this.track.length) / SEG) % pts.length;
       const p = pts[i];
-      const x = tx(p.x);
-      const y = ty(p.y);
-      if (c.human) {
-        m.fillStyle = "#111";
-        m.beginPath();
-        m.arc(x, y, 8, 0, Math.PI * 2);
-        m.fill();
-        m.fillStyle = "#fff";
-        m.beginPath();
-        m.arc(x, y, 5.5, 0, Math.PI * 2);
-        m.fill();
-      } else {
-        m.fillStyle = c.car.color;
-        m.beginPath();
-        m.arc(x, y, 4.6, 0, Math.PI * 2);
-        m.fill();
-        m.strokeStyle = "rgba(0,0,0,0.65)";
-        m.lineWidth = 1;
-        m.stroke();
-      }
+      if (!p) continue;
+      const x = tx(p.x), y = ty(p.y);
+      m.beginPath();
+      m.arc(x, y, 3.4 * dpr, 0, Math.PI * 2);
+      m.fillStyle = c.car?.color || "#8899aa";
+      m.fill();
+      m.strokeStyle = "rgba(255,255,255,0.55)";
+      m.lineWidth = 1.1 * dpr;
+      m.stroke();
+    }
+
+    // Player — directional wedge
+    const player = this.cars.find((c) => c.human) || this.player;
+    if (player) {
+      const len = this.track.length;
+      const z = ((player.z % len) + len) % len;
+      const i0 = Math.floor(z / SEG) % pts.length;
+      const i1 = (i0 + 1) % pts.length;
+      const p0 = pts[i0], p1 = pts[i1];
+      const x = tx(p0.x), y = ty(p0.y);
+      const ang = Math.atan2(ty(p1.y) - y, tx(p1.x) - x);
+      m.save();
+      m.translate(x, y);
+      m.rotate(ang);
+      // glow
+      m.beginPath();
+      m.arc(0, 0, 7.5 * dpr, 0, Math.PI * 2);
+      m.fillStyle = "rgba(255,255,255,0.18)";
+      m.fill();
+      // arrow
+      m.beginPath();
+      m.moveTo(7.2 * dpr, 0);
+      m.lineTo(-5.2 * dpr, 4.6 * dpr);
+      m.lineTo(-3.2 * dpr, 0);
+      m.lineTo(-5.2 * dpr, -4.6 * dpr);
+      m.closePath();
+      m.fillStyle = "#ffffff";
+      m.fill();
+      m.strokeStyle = "rgba(0,0,0,0.75)";
+      m.lineWidth = 1.2 * dpr;
+      m.stroke();
+      m.restore();
     }
   }
 
