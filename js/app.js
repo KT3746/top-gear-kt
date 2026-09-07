@@ -1,7 +1,7 @@
-import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=tv1";
-import { AudioBus } from "./audio.js?v=tv1";
-import { GameEngine } from "./engine.js?v=tv1";
-import { getModo } from "./modo.js?v=tv1";
+import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=top1";
+import { AudioBus } from "./audio.js?v=top1";
+import { GameEngine } from "./engine.js?v=top1";
+import { getModo } from "./modo.js?v=top1";
 
 const SAVE_KEY = "relampago-save";
 
@@ -861,7 +861,7 @@ class App {
   renderStandings() {
     const last = !this.cup || this.cup.done || this.cup.completed >= TRACKS.length;
     const rows = Object.entries(this.cup.points).sort((a, b) => b[1] - a[1]);
-    $("standings-title").textContent = last ? "Taça Relâmpago" : "Classificação";
+    $("standings-title").textContent = last ? "Taça TOP RELÂMPAGO" : "Classificação";
     $("standings-sub").textContent = last
       ? `${rows[0][0]} levou o campeonato.`
       : `Próxima pista: ${TRACKS[this.cup.completed].name}`;
