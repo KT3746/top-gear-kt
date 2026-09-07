@@ -409,6 +409,22 @@ body.racing .top-tools {
 }
 
 .hud-card.wide { min-width: 140px; }
+.hud-track { min-width: 128px; max-width: 180px; }
+.hud-track strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 22px !important;
+  letter-spacing: 0.02em;
+}
+.hud-flag { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 2px #000); }
+#hud-track-name {
+  font-size: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 9ch;
+}
 .hud-label {
   display: block;
   font-size: 11px;
@@ -599,14 +615,157 @@ body.racing .top-tools {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 18px;
   z-index: 6;
-  font-family: "Teko", Impact, sans-serif;
-  font-size: 160px;
   pointer-events: none;
-  text-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.08) 55%, transparent 72%);
 }
+.countdown .lights {
+  display: flex;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(6, 10, 18, 0.82);
+  border: 2px solid rgba(255,255,255,0.25);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.45);
+}
+.countdown .lights i {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #2a3038;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.countdown.n3 .lights i:nth-child(1),
+.countdown.n2 .lights i:nth-child(1),
+.countdown.n2 .lights i:nth-child(2),
+.countdown.n1 .lights i {
+  background: radial-gradient(circle at 35% 30%, #ff7a6a, #d41919 70%);
+  box-shadow: 0 0 18px rgba(255, 60, 40, 0.85), inset 0 1px 2px rgba(255,255,255,0.35);
+}
+.countdown.go .lights i {
+  background: radial-gradient(circle at 35% 30%, #9dff8a, #1f9a2e 70%);
+  box-shadow: 0 0 20px rgba(60, 255, 90, 0.9), inset 0 1px 2px rgba(255,255,255,0.35);
+}
+#countdown-num {
+  font-family: "Teko", Impact, sans-serif;
+  font-size: clamp(110px, 28vw, 200px);
+  line-height: 0.85;
+  color: #fff;
+  text-shadow: 0 8px 0 #111, 0 14px 36px rgba(0,0,0,0.75);
+  letter-spacing: 0.04em;
+}
+.countdown.go #countdown-num {
+  color: #b8ff6a;
+  text-shadow: 0 8px 0 #143016, 0 0 40px rgba(120, 255, 80, 0.65), 0 14px 36px rgba(0,0,0,0.75);
+  animation: go-pop 0.35s ease-out;
+}
+@keyframes go-pop {
+  from { transform: scale(0.7); opacity: 0.4; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.lap-banner {
+  position: absolute;
+  left: 50%;
+  top: max(72px, calc(env(safe-area-inset-top) + 64px));
+  transform: translateX(-50%);
+  z-index: 9;
+  min-width: min(88vw, 340px);
+  padding: 12px 22px 14px;
+  text-align: center;
+  pointer-events: none;
+  border-radius: 6px;
+  background: linear-gradient(180deg, rgba(12, 16, 28, 0.94), rgba(6, 8, 16, 0.96));
+  border: 2px solid rgba(240, 180, 41, 0.75);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.5), 0 12px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.12);
+  animation: tv-blink 0.9s steps(2, end) infinite;
+}
+.lap-banner-eyebrow {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #f0b429;
+  font-weight: 800;
+}
+#lap-banner-title {
+  display: block;
+  font-family: "Teko", Impact, sans-serif;
+  font-size: clamp(42px, 10vw, 64px);
+  line-height: 0.95;
+  color: #fff;
+  text-shadow: 0 3px 0 #000;
+}
+.lap-banner-stats {
+  display: flex;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 4px;
+  font-family: "Teko", Impact, sans-serif;
+  font-size: 28px;
+  color: #e8edf5;
+}
+.lap-banner-pos { color: #9cfff8; }
+@keyframes tv-blink {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18); }
+}
+
+.radio {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  bottom: max(118px, calc(env(safe-area-inset-bottom) + 102px));
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(78vw, 360px);
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(8, 14, 24, 0.88);
+  border: 1px solid rgba(124, 246, 255, 0.35);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.4);
+  pointer-events: none;
+  animation: radio-in 0.25s ease-out;
+}
+.radio-tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #041018;
+  background: #7cf6ff;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+#radio-msg {
+  font-size: 14px;
+  font-weight: 700;
+  color: #e8fbff;
+  text-shadow: 0 1px 2px #000;
+}
+@keyframes radio-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+body.modo-celular.racing .radio {
+  bottom: auto;
+  top: max(150px, calc(env(safe-area-inset-top) + 140px));
+  left: max(12px, env(safe-area-inset-left));
+}
+body.modo-celular.racing .lap-banner {
+  top: max(56px, calc(env(safe-area-inset-top) + 48px));
+}
+body.modo-celular.racing .hud-track { display: none; }
+body.modo-celular.racing .countdown .lights i { width: 22px; height: 22px; }
+body.modo-celular.racing #countdown-num { font-size: clamp(90px, 24vw, 140px); }
+
 
 .pads {
   position: absolute;
@@ -767,6 +926,8 @@ body.modo-pc .hud-pause { display: none !important; }
 
 body.rotate-block #toast,
 body.rotate-block #countdown,
+body.rotate-block #lap-banner,
+body.rotate-block #radio,
 body.rotate-block .top-tools,
 body.rotate-block #hud,
 body.rotate-block #btn-pause,
