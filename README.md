@@ -1,4 +1,4 @@
-# Relâmpago
+# TOP RELÂMPAGO
 
 Jogo de corrida no navegador. Não precisa instalar nada.
 
