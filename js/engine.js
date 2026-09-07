@@ -1,4 +1,4 @@
-import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js";
+import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=map30";
 
 const SEG = 200;
 const ROAD = 2100;
@@ -18,7 +18,7 @@ const CAR_SIGHT_Z = 1700;
 const NITRO_CHARGES = 3;
 const NITRO_BURST = 1.75;
 const AI_LINES = [-0.70, 0.62, -0.32, 0.38, -0.54, 0.12, 0.78];
-const AI_SLOTS = [380, 1200, 2400, 3900, 5600, 7400, 9000];
+const AI_SLOTS = [266, 840, 1680, 2730, 3920, 5180, 6300];  // scaled with MAP_SCALE 0.7
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -65,18 +65,26 @@ function addRoad(segs, enter, hold, leave, curve, hill) {
 }
 
 function buildTrack(def) {
+  // Map 30% shorter (~70% of previous length). Curves/hills keep same sharpness/height.
+  const MAP_SCALE = 0.7;
   const segs = [];
+  const nSeg = (n) => Math.max(1, Math.round(n * MAP_SCALE));
   for (const step of def.recipe()) {
     const kind = step[0];
-    if (kind === "straight") addRoad(segs, 0, step[1], 0, 0, 0);
-    else if (kind === "curve") addRoad(segs, step[1], step[1], step[1], step[2], step[3] || 0);
-    else if (kind === "hill") addRoad(segs, step[1], step[1], step[1], 0, step[2]);
-    else if (kind === "scurve") {
-      addRoad(segs, step[1], step[1], step[1], step[2], 0);
-      addRoad(segs, step[1], step[1], step[1], -step[2], 0);
+    if (kind === "straight") addRoad(segs, 0, nSeg(step[1]), 0, 0, 0);
+    else if (kind === "curve") {
+      const n = nSeg(step[1]);
+      addRoad(segs, n, n, n, step[2], step[3] || 0);
+    } else if (kind === "hill") {
+      const n = nSeg(step[1]);
+      addRoad(segs, n, n, n, 0, step[2]);
+    } else if (kind === "scurve") {
+      const n = nSeg(step[1]);
+      addRoad(segs, n, n, n, step[2], 0);
+      addRoad(segs, n, n, n, -step[2], 0);
     }
   }
-  addRoad(segs, 10, 10, 10, 0, 0);
+  addRoad(segs, nSeg(10), nSeg(10), nSeg(10), 0, 0);
 
   const map = [];
   let x = 0, y = 0, ang = 0;
@@ -100,7 +108,7 @@ function buildTrack(def) {
       scale: big * 0.85,
     });
   }
-  for (let i = 70; i < segs.length - 45; i += 95) {
+  for (let i = 49; i < segs.length - 32; i += 66) {  // MAP_SCALE 0.7
     segs[i].pickup = { x: 0, taken: false };
   }
   return { segs, map, length: segs.length * SEG, def };
