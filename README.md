@@ -2,12 +2,12 @@
 
 Jogo de corrida no navegador. Não precisa instalar nada.
 
-**Comece aqui:** [https://kt3746.github.io/top-gear-kt/](https://kt3746.github.io/top-gear-kt/)
+**Comece aqui:** [https://kt3746.github.io/grokbot-top-relampago/](https://kt3746.github.io/grokbot-top-relampago/)
 
 São duas versões. Escolha a sua:
 
-- **Computador:** [https://kt3746.github.io/top-gear-kt/pc/](https://kt3746.github.io/top-gear-kt/pc/) — só teclado, sem botões na pista
-- **Celular:** [https://kt3746.github.io/top-gear-kt/celular/](https://kt3746.github.io/top-gear-kt/celular/) — botões grandes na tela
+- **Computador:** [https://kt3746.github.io/grokbot-top-relampago/pc/](https://kt3746.github.io/grokbot-top-relampago/pc/) — só teclado, sem botões na pista
+- **Celular:** [https://kt3746.github.io/grokbot-top-relampago/celular/](https://kt3746.github.io/grokbot-top-relampago/celular/) — botões grandes na tela
 
 ## Computador
 
