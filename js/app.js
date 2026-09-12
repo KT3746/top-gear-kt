@@ -1,7 +1,7 @@
-import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=top1";
-import { AudioBus } from "./audio.js?v=top1";
-import { GameEngine } from "./engine.js?v=top1";
-import { getModo } from "./modo.js?v=top1";
+import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=nosombtn1";
+import { AudioBus } from "./audio.js?v=nosombtn1";
+import { GameEngine } from "./engine.js?v=nosombtn1";
+import { getModo } from "./modo.js?v=nosombtn1";
 
 const SAVE_KEY = "relampago-save";
 
@@ -331,7 +331,8 @@ class App {
   }
 
   syncMute() {
-    $("btn-mute").textContent = this.audio.muted ? "Som off" : "Som";
+    const muteBtn = $("btn-mute");
+    if (muteBtn) muteBtn.textContent = this.audio.muted ? "Som off" : "Som";
   }
 
   isIPhone() {
