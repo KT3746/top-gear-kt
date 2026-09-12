@@ -20,7 +20,7 @@ export class AudioBus {
     this.master = this.ctx.createGain();
     this.musicGain = this.ctx.createGain();
     this.sfxGain = this.ctx.createGain();
-    this.musicGain.gain.value = 0.16;
+    this.musicGain.gain.value = 0.13;
     this.sfxGain.gain.value = 0.22;
     this.musicGain.connect(this.master);
     this.sfxGain.connect(this.master);
@@ -133,31 +133,60 @@ export class AudioBus {
     }
   }
 
-  // Original chiptune-style loops (inspired by SNES racers, not a copy of any track).
+  // Original SNES-racer vibe (new tune — not a copy of any commercial track).
   patterns() {
-    // MIDI-ish note numbers → Hz
     const n = (midi) => midi ? 440 * Math.pow(2, (midi - 69) / 12) : 0;
     if (this.theme === "race") {
-      // Fast 16-step loop in A minor / C mix — bouncey racing energy
+      // 32-step groove: punchy bass + catchy hook, less noisy than before
       return {
-        bpm: 148,
-        steps: 16,
-        bass:  [33, 0, 33, 0, 36, 0, 33, 0, 31, 0, 31, 0, 36, 0, 38, 0].map(n),
-        lead:  [69, 72, 76, 72, 69, 67, 64, 67, 69, 72, 74, 76, 74, 72, 69, 67].map(n),
-        lead2: [0, 0, 64, 0, 0, 0, 60, 0, 0, 0, 62, 0, 0, 0, 64, 0].map(n),
-        hat:   [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1],
-        kick:  [1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0],
+        bpm: 132,
+        steps: 32,
+        bass: [
+          36,0,36,0, 36,0,43,0, 38,0,38,0, 38,0,45,0,
+          41,0,41,0, 41,0,48,0, 43,0,43,38, 36,0,31,0,
+        ].map(n),
+        lead: [
+          72,0,74,76, 0,76,74,72, 67,0,69,71, 0,72,0,0,
+          74,0,72,69, 0,67,69,72, 76,0,74,72, 71,69,67,0,
+        ].map(n),
+        lead2: [
+          60,0,0,64, 0,0,67,0, 59,0,0,62, 0,0,66,0,
+          60,0,0,64, 0,0,67,0, 62,0,0,66, 0,64,0,0,
+        ].map(n),
+        hat: [
+          1,0,1,0, 1,0,1,1, 1,0,1,0, 1,0,1,1,
+          1,0,1,0, 1,0,1,1, 1,0,1,0, 1,1,1,0,
+        ],
+        kick: [
+          1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,0,0,
+          1,0,0,0, 1,0,0,1, 1,0,0,0, 1,0,1,0,
+        ],
       };
     }
-    // Menu: mid-tempo, catchy but calmer
+    // Menu: warmer, slower, melodic
     return {
-      bpm: 112,
-      steps: 16,
-      bass:  [33, 0, 0, 33, 36, 0, 0, 36, 38, 0, 0, 38, 36, 0, 31, 0].map(n),
-      lead:  [64, 0, 67, 69, 0, 67, 64, 0, 62, 0, 64, 67, 0, 69, 67, 64].map(n),
-      lead2: [0, 57, 0, 0, 60, 0, 0, 57, 0, 55, 0, 0, 57, 0, 0, 55].map(n),
-      hat:   [1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0],
-      kick:  [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1],
+      bpm: 100,
+      steps: 32,
+      bass: [
+        36,0,0,36, 0,0,43,0, 38,0,0,38, 0,0,45,0,
+        41,0,0,41, 0,0,48,0, 43,0,0,38, 36,0,31,0,
+      ].map(n),
+      lead: [
+        67,0,69,71, 0,72,0,71, 69,0,67,64, 0,67,0,0,
+        69,0,71,72, 0,74,0,72, 71,0,69,67, 0,64,0,0,
+      ].map(n),
+      lead2: [
+        55,0,0,0, 60,0,0,0, 57,0,0,0, 62,0,0,0,
+        60,0,0,0, 64,0,0,0, 62,0,0,0, 59,0,0,0,
+      ].map(n),
+      hat: [
+        1,0,0,1, 1,0,1,0, 1,0,0,1, 1,0,1,0,
+        1,0,0,1, 1,0,1,0, 1,0,0,1, 1,0,1,1,
+      ],
+      kick: [
+        1,0,0,0, 0,0,1,0, 1,0,0,0, 0,0,1,0,
+        1,0,0,0, 0,0,1,0, 1,0,0,0, 1,0,0,0,
+      ],
     };
   }
 
@@ -186,11 +215,11 @@ export class AudioBus {
       const t = this._nextAt;
       if (!this.muted) {
         const race = this.theme === "race";
-        if (p.bass[i]) this.tone(p.bass[i], stepDur * 0.92, "triangle", race ? 0.07 : 0.055, t);
-        if (p.lead[i]) this.tone(p.lead[i], stepDur * 0.7, race ? "square" : "triangle", race ? 0.038 : 0.032, t);
-        if (p.lead2[i]) this.tone(p.lead2[i], stepDur * 0.85, "sine", race ? 0.028 : 0.024, t);
-        if (p.kick[i]) this.kick(t, race ? 0.06 : 0.045);
-        if (p.hat[i]) this.hat(t, race ? 0.028 : 0.02);
+        if (p.bass[i]) this.tone(p.bass[i], stepDur * 0.88, "triangle", race ? 0.055 : 0.042, t);
+        if (p.lead[i]) this.tone(p.lead[i], stepDur * 0.62, race ? "square" : "triangle", race ? 0.026 : 0.022, t);
+        if (p.lead2[i]) this.tone(p.lead2[i], stepDur * 0.78, "sine", race ? 0.018 : 0.016, t);
+        if (p.kick[i]) this.kick(t, race ? 0.045 : 0.032);
+        if (p.hat[i]) this.hat(t, race ? 0.016 : 0.012);
       }
       this.step++;
       this._nextAt += stepDur;
@@ -239,7 +268,7 @@ export class AudioBus {
     o.type = type;
     o.frequency.value = freq;
     f.type = "lowpass";
-    f.frequency.value = type === "square" ? 2200 : 1800;
+    f.frequency.value = type === "square" ? 1400 : 1600;
     g.gain.setValueAtTime(vol, time);
     g.gain.exponentialRampToValueAtTime(0.001, time + Math.max(0.03, dur));
     o.connect(f);
