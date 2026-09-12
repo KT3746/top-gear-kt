@@ -1,7 +1,7 @@
-import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=nosombtn1";
-import { AudioBus } from "./audio.js?v=nosombtn1";
-import { GameEngine } from "./engine.js?v=nosombtn1";
-import { getModo } from "./modo.js?v=nosombtn1";
+import { CARS, TRACKS, UPGRADES, PRIZE, POINTS, DRIVERS, QUALIFY } from "./data.js?v=nosombtn2";
+import { AudioBus } from "./audio.js?v=nosombtn2";
+import { GameEngine } from "./engine.js?v=nosombtn2";
+import { getModo } from "./modo.js?v=nosombtn2";
 
 const SAVE_KEY = "relampago-save";
 
