@@ -1109,3 +1109,11 @@ body.modo-pc #screen-title h1 {
   .howto { margin: 8px auto; }
   .howto li { margin: 4px 0; font-size: 13px; }
 }
+
+
+/* Removed UI: keep hidden even if cached HTML still has the nodes */
+#btn-mute,
+button.hud-pause,
+#btn-pause {
+  display: none !important;
+}
