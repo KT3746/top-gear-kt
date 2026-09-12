@@ -1,4 +1,4 @@
-import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=nosombtn2";
+import { CARS, DRIVERS, TRACKS, applyUpgrades } from "./data.js?v=fixmusic1";
 
 const SEG = 200;
 const ROAD = 2100;
@@ -938,9 +938,9 @@ export class GameEngine {
       if (raceGap > 8200) target *= 0.72;
       else if (slotErr > 2200) target *= 0.78;
       else if (slotErr > 900) target *= 0.88;
-      else if (raceGap < -3500) target = cap;
-      else if (slotErr < -2200) target *= 1.10;
-      else if (slotErr < -900) target *= 1.05;
+      else if (raceGap < -3500) target = Math.min(cap, ref * 1.06);
+      else if (slotErr < -2200) target *= 1.06;
+      else if (slotErr < -900) target *= 1.03;
 
       target = clamp(target, ref * 0.72, Math.min(ref * 1.10, cap));
 
@@ -1020,8 +1020,8 @@ export class GameEngine {
       for (const c of this.cars) {
         if (c.human) continue;
         c._prevZ = c.z;
-        c.z += c.speed * dt;
-        c.z = wrapZ(c.z, len);
+        const step = clamp(c.speed * dt, 0, 4200 * dt + 40);
+        c.z = wrapZ(c.z + step, len);
       }
     } else {
       for (const c of this.cars) {
@@ -1058,17 +1058,21 @@ export class GameEngine {
   shiftAI(car, dx, dz) {
     if (!car || car.human) return;
     const len = this.track.length;
+    // Cap corrections so rivals never "teleport" when unsticking.
     if (dx) {
+      dx = clamp(dx, -0.12, 0.12);
       car.x = clamp(car.x + dx, -0.92, 0.92);
       car.line = car.x;
       car.lane = car.x;
-      car.laneT = Math.max(car.laneT || 0, 1.2);
+      car.laneT = Math.max(car.laneT || 0, 0.8);
       car._drawX = null;
     }
     if (dz) {
+      dz = clamp(dz, -28, 28);
       car.z = wrapZ(car.z + dz, len);
       car._drawX = null;
       car._drawY = null;
+      car._drawS = null;
     }
   }
 
@@ -1200,8 +1204,8 @@ export class GameEngine {
     const side = Math.sign(ai.x - this.playerX) || (1 - 2 * ((ai.aiIndex || 0) % 2));
     const needX = Math.min(this.pixelClearX(ai), 0.42);
     if (adx < needX) this.shiftAI(ai, side * Math.min(needX - adx + 0.03, 0.16), 0);
-    if (dz > 0 && adz < CAR_HALF_L * 1.25) {
-      this.shiftAI(ai, 0, Math.min(CAR_HALF_L * 1.25 - adz + 10, 36));
+    if (dz > 0 && adz < CAR_HALF_L * 1.1) {
+      this.shiftAI(ai, 0, Math.min(CAR_HALF_L * 1.1 - adz + 4, 18));
     }
   }
 
@@ -1216,20 +1220,16 @@ export class GameEngine {
       this.unstickFromPlayer(a.human ? b : a);
       return true;
     }
-    const minZ = CAR_HALF_L * 2;
+    const minZ = CAR_HALF_L * 1.6;
     const minX = CAR_HALF_W * 2;
     if (adz >= minZ || adx >= minX) return false;
     const ahead = dz >= 0 ? a : b;
-    const needZ = minZ - adz + 10;
-    const needX = minX - adx + 0.04;
-    const shoveX = Math.max(needX, 0.12);
-    if ((a.bumpLock || 0) > 0 || (b.bumpLock || 0) > 0) {
-      if (!ahead.human) this.shiftAI(ahead, 0, needZ);
-      return true;
-    }
-    this.shiftAI(a, Math.sign(dx || 1) * shoveX * 0.5, 0);
-    this.shiftAI(b, -Math.sign(dx || 1) * shoveX * 0.5, 0);
-    if (adz < minZ * 0.7 && !ahead.human) this.shiftAI(ahead, 0, needZ * 0.5);
+    const needX = minX - adx + 0.03;
+    const shoveX = Math.min(Math.max(needX, 0.08), 0.14);
+    // Prefer lane separation; tiny forward nudge only if still stacked.
+    this.shiftAI(a, Math.sign(dx || 1) * shoveX * 0.55, 0);
+    this.shiftAI(b, -Math.sign(dx || 1) * shoveX * 0.55, 0);
+    if (adz < minZ * 0.45 && !ahead.human) this.shiftAI(ahead, 0, 12);
     return true;
   }
 
@@ -1285,7 +1285,7 @@ export class GameEngine {
       const away = Math.sign(dx) || -1;
       // No trombada: no speed loss, shake, flash, or bump sound.
       // Only a tiny silent separation so sprites don't stay glued.
-      this.shiftAI(c, -away * 0.03, dz > 0 ? 8 : -8);
+      this.shiftAI(c, -away * 0.05, dz > 0 ? 6 : -6);
       this.unstickFromPlayer(c);
     }
     for (let i = 0; i < this.cars.length; i++) {
@@ -1370,7 +1370,7 @@ export class GameEngine {
             place: this.livePlace(this.player),
             time: finishedLap,
           };
-          this.lapFlashT = done ? 2.6 : 2.2;
+          this.lapFlashT = done ? 1.8 : 1.5;
           this.lapTime = 0;
           this.toast = "";
           this.toastT = 0;
